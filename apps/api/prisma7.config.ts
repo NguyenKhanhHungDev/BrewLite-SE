@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -25,8 +26,22 @@ export default {
   datasource: {
     url: process.env.DATABASE_URL,
   },
+=======
+import 'dotenv/config';
+import { defineConfig, env } from 'prisma/config';
+
+export default defineConfig({
+  schema: 'prisma/schema.prisma',
+>>>>>>> origin/main
   migrations: {
     path: 'prisma/migrations',
     seed: 'tsx prisma/seed.ts',
   },
+<<<<<<< HEAD
 };
+=======
+  datasource: {
+    url: env('DATABASE_URL'),
+  },
+});
+>>>>>>> origin/main

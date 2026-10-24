@@ -1,10 +1,18 @@
 // This is your Prisma schema file,
+<<<<<<< HEAD
 //learn more about it in the docs: https://pris.ly/d/prisma-schema
+=======
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+>>>>>>> origin/main
 
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
+<<<<<<< HEAD
   provider = "prisma-client-js"
+=======
+  provider = "prisma-client"
+>>>>>>> origin/main
   output   = "../src/generated/prisma"
 }
 
@@ -18,10 +26,13 @@ model Product {
   price    Int
   imageUrl String
   stock    Int
+<<<<<<< HEAD
 }
 
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   passwordHash String
+=======
+>>>>>>> origin/main
 }
