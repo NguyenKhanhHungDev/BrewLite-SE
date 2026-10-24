@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Forward the existing Products API without changing the backend's CORS.
+  async rewrites() {
+    return [
+      { source: "/products", destination: "http://localhost:3001/products" },
+    ];
+  },
   experimental: {
     agentFeedback: true,
   },

@@ -1,0 +1,24 @@
+{
+  "browser": "156.0.4314.42",
+  "database": "PostgreSQL, seed goc cua nhom",
+  "apiProducts": 3,
+  "fontsLoaded": [
+    "DM Sans",
+    "Fraunces"
+  ],
+  "passed": [
+    "API that + grid 3 cot + header/hero + khong tran ngang 1280px",
+    "API that + grid 2 cot + header/hero + khong tran ngang 768px",
+    "API that + grid 2 cot + header/hero + khong tran ngang 390px",
+    "Fixture: loading tach biet empty, sau do hien ket qua",
+    "Fixture: API [] hien empty, hero an toan",
+    "Fixture: HTTP 500 hien loi, Thu lai lay API that thanh cong",
+    "Fixture: network failure hien loi, Thu lai lay API that thanh cong",
+    "Fixture: wrong response shape hien loi, Thu lai lay API that thanh cong",
+    "Fixture: invalid product hien loi, Thu lai lay API that thanh cong",
+    "Fixture: invalid JSON hien loi, Thu lai lay API that thanh cong",
+    "Fixture: het hang, ten dai, anh imageUrl dung tren mobile",
+    "Chan tai font that: font du phong va layout mobile van hoat dong"
+  ],
+  "pageErrors": []
+}

@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BrewLite — A1-03 Menu
 
-## Getting Started
+Issue: [A1-03 — Menu đồ uống](https://github.com/NguyenKhanhHungDev/BrewLite-SE/issues/3).
+Nhánh: `feature/a1-03-menu`. Giao diện tham chiếu: `brewlite-ui (7)`.
 
-First, run the development server:
+## Chạy
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Cần API ở `http://localhost:3001`, PostgreSQL và `.env` theo
+[README gốc](../../README.md). Cấu hình Prisma có sẵn tại
+`apps/api/prisma7.config.ts`; truyền `--config prisma7.config.ts` khi chạy
+Prisma CLI từ `apps/api`. Nếu chưa có database, nhờ Hưng xác nhận cấu hình.
+
+```powershell
+cd apps/web
+npm.cmd ci
+npm.cmd run dev -- --port 3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở http://localhost:3000. Rewrite `/products` chuyển tiếp tới API NestJS
+`http://localhost:3001/products` để frontend gọi cùng origin. Response là mảng
+`{id, name, price, imageUrl, stock}`; kiểu dữ liệu tại `lib/products.ts`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Menu có Header/Hero/Footer, lưới 3 cột desktop và 2 cột tablet/mobile,
+loading/empty/error và nút thử lại. Size/topping, Detail và Cart thuộc task sau.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+DM Sans/Fraunces được tải lúc build bằng `next/font/google` và phục vụ từ
+Next.js; cần mạng khi build lần đầu. Arial/Georgia là font dự phòng.
+Ảnh API lỗi hoặc chưa có dùng ảnh thay thế chung kèm “Ảnh đang cập nhật”.
 
-## Learn More
+## Kiểm tra
 
-To learn more about Next.js, take a look at the following resources:
+```powershell
+npm.cmd run lint
+npm.cmd run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Kết quả và ảnh: [kiểm tra A1-03](docs/a1-03-verification.md).
