@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760" viewBox="0 0 600 760" role="img" aria-label="Ảnh minh họa đồ uống TRÀ VẢI">
+  <title>TRÀ VẢI – BrewLite</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff1ef"/><stop offset="1" stop-color="#f0c7d3"/></linearGradient>
+    <linearGradient id="drink" x1="0" y1="0" x2="0.8" y2="1"><stop stop-color="#f4c6a7"/><stop offset="1" stop-color="#fadfba"/></linearGradient>
+    <linearGradient id="glass" x1="0" x2="1"><stop stop-color="#fff" stop-opacity=".43"/><stop offset=".47" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#fff" stop-opacity=".46"/></linearGradient>
+    <clipPath id="cup"><path d="M177 238H423L399 587Q397 614 371 616H229Q203 614 201 587Z"/></clipPath>
+  </defs>
+  <rect width="600" height="760" rx="34" fill="url(#bg)"/>
+  <circle cx="105" cy="102" r="96" fill="#fff" opacity=".25"/>
+  <circle cx="545" cy="505" r="115" fill="#fff" opacity=".22"/>
+  <path d="M0 565Q145 518 300 572T600 567V760H0Z" fill="#fff" opacity=".17"/>
+  <ellipse cx="300" cy="629" rx="167" ry="24" fill="#bd788c" opacity=".16"/>
+  <path d="M324 155L308 339" stroke="#bd788c" stroke-width="19" stroke-linecap="round"/>
+  <path d="M177 238H423L399 587Q397 614 371 616H229Q203 614 201 587Z" fill="url(#drink)"/>
+  <g clip-path="url(#cup)">
+    <g fill="#fff" fill-opacity=".32" stroke="#fff" stroke-opacity=".33" stroke-width="3">
+      <rect x="231" y="307" width="55" height="51" rx="12" transform="rotate(17 231 307)"/>
+      <rect x="330" y="359" width="48" height="43" rx="10" transform="rotate(-15 330 359)"/>
+      <rect x="246" y="421" width="52" height="43" rx="10" transform="rotate(-8 246 421)"/>
+      <rect x="333" y="480" width="43" height="41" rx="10" transform="rotate(13 333 480)"/>
+    </g>
+    <path d="M188 475Q292 452 418 484L410 635H185Z" fill="#fadfba" opacity=".27"/>
+  </g>
+  <path d="M177 238H423L399 587Q397 614 371 616H229Q203 614 201 587Z" fill="url(#glass)" stroke="#fff" stroke-opacity=".81" stroke-width="9"/>
+  <ellipse cx="300" cy="239" rx="124" ry="30" fill="#fff0d6" stroke="#fff" stroke-opacity=".76" stroke-width="6"/>
+  <ellipse cx="300" cy="244" rx="104" ry="14" fill="#f4c6a7" opacity=".28"/>
+  <path d="M225 301L236 555" stroke="#fff" stroke-opacity=".24" stroke-width="15" stroke-linecap="round"/>
+  <g transform="translate(415 244)"><circle r="50" fill="#df99ac"/><circle r="40" fill="#fff1dd"/><circle r="13" fill="#c17c8b"/></g><circle cx="260" cy="384" r="29" fill="#fff0dd" opacity=".65"/>
+  <text x="300" y="678" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="1" fill="#bd788c">TRÀ VẢI</text>
+  <text x="300" y="712" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="600" letter-spacing="5" fill="#bd788c" opacity=".75">BREWLITE</text>
+</svg>
