@@ -5,7 +5,7 @@ import type { OrdersStore } from './orders.contract.js';
 function makeTestService() {
   const store: OrdersStore = {
     getProductById: vi.fn(async (id: number) =>
-      id === 1 ? { id: 1, price: 25000 } : null,
+      id === 1 ? { id: 1, price: 25000, stock: 20 } : null,
     ),
     saveOrder: vi.fn(async () => ({ id: 42 })),
   };
@@ -59,6 +59,19 @@ describe('A1-06 OrdersService', () => {
         items: [{ productId: 999, quantity: 1 }],
       }),
     ).rejects.toThrow();
+  });
+
+  it('calculates size and topping prices on the server', async () => {
+    const { service, store } = makeTestService();
+    const result = await service.create(7, { items: [{ productId: 1, quantity: 2, size: 'L', toppings: ['PEARL'] }] });
+    expect(result.total).toBe(70000);
+    expect(store.saveOrder).toHaveBeenCalledWith(expect.objectContaining({ items: [expect.objectContaining({ unitPrice: 35000, size: 'L', toppings: ['PEARL'] })] }));
+  });
+
+  it('rejects invalid topping and quantity over stock', async () => {
+    const { service } = makeTestService();
+    await expect(service.create(7, { items: [{ productId: 1, quantity: 1, toppings: ['MILK'] }] })).rejects.toThrow();
+    await expect(service.create(7, { items: [{ productId: 1, quantity: 21 }] })).rejects.toThrow();
   });
 
   it('rejects missing authenticated user', async () => {
