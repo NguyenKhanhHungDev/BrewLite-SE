@@ -1,13 +1,18 @@
 export type OrderStatus = 'PENDING' | 'PAID' | 'PAYMENT_FAILED';
+export type Size = 'S' | 'M' | 'L';
+export type Topping = 'PEARL' | 'CREAM';
 
 export interface ProductSnapshot {
   id: number;
   price: number;
+  stock: number;
 }
 
 export interface OrderLine {
   productId: number;
   quantity: number;
+  size: Size;
+  toppings: Topping[];
   unitPrice: number;
   subtotal: number;
 }
