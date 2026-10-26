@@ -2,7 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
-  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   PAYMENT_ORDERS_STORE,
@@ -19,9 +19,10 @@ function parsePayment(body: unknown): PaymentRequest {
     throw new BadRequestException('Invalid payment body');
   }
   const keys = Object.keys(body);
-  if (keys.length !== 3 || keys.some(
-    (key) => !['orderId', 'method', 'simulateResult'].includes(key),
-  )) {
+  if (
+    keys.length !== 3 ||
+    keys.some((key) => !['orderId', 'method', 'simulateResult'].includes(key))
+  ) {
     throw new BadRequestException('Expected orderId, method, simulateResult');
   }
   if (!Number.isSafeInteger(body.orderId) || Number(body.orderId) <= 0) {
@@ -40,6 +41,28 @@ function parsePayment(body: unknown): PaymentRequest {
   };
 }
 
+function parseIdempotencyKey(rawKey: unknown): string {
+  if (typeof rawKey !== 'string') {
+    throw new BadRequestException('Idempotency-Key header is required');
+  }
+  const trimmed = rawKey.trim();
+  if (trimmed.length === 0 || trimmed.length > 128) {
+    throw new BadRequestException(
+      'Idempotency-Key must be between 1 and 128 characters',
+    );
+  }
+  return trimmed;
+}
+
+function buildRequestHash(dto: PaymentRequest, userId: number): string {
+  return JSON.stringify({
+    userId,
+    orderId: dto.orderId,
+    method: dto.method,
+    simulateResult: dto.simulateResult,
+  });
+}
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -47,19 +70,20 @@ export class PaymentsService {
     private readonly ordersStore: PaymentOrdersStore,
   ) {}
 
-  async pay(requestBody: unknown) {
-    const dto = parsePayment(requestBody);
-    const order = await this.ordersStore.findOrderById(dto.orderId);
-    if (!order) throw new NotFoundException('Order not found');
-    if (order.status !== 'PENDING') {
-      throw new BadRequestException('Only PENDING orders can be paid');
+  async pay(requestBody: unknown, idempotencyKey?: unknown, userId?: unknown) {
+    if (!Number.isSafeInteger(userId) || Number(userId) <= 0) {
+      throw new UnauthorizedException('Invalid authenticated user');
     }
+    const key = parseIdempotencyKey(idempotencyKey);
+    const dto = parsePayment(requestBody);
+    const normalizedUserId = Number(userId);
+    const requestHash = buildRequestHash(dto, normalizedUserId);
 
-    const nextStatus = dto.simulateResult === 'SUCCESS'
-      ? 'PAID' as const
-      : 'PAYMENT_FAILED' as const;
-    await this.ordersStore.updateOrderStatus(order.id, nextStatus);
-
-    return { orderId: order.id, status: nextStatus };
+    return this.ordersStore.payOnce({
+      request: dto,
+      idempotencyKey: key,
+      requestHash,
+      userId: normalizedUserId,
+    });
   }
 }

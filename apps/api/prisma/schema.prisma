@@ -31,6 +31,7 @@ model Order {
   total     Int
   createdAt DateTime    @default(now())
   items     OrderItem[]
+  payments  Payment[]
 }
 
 model OrderItem {
@@ -44,4 +45,15 @@ model OrderItem {
   toppings  Json
   unitPrice Int
   subtotal  Int
+}
+model Payment {
+  id             Int      @id @default(autoincrement())
+  orderId        Int
+  order          Order    @relation(fields: [orderId], references: [id])
+  idempotencyKey String   @unique
+  requestHash    String
+  amount         Int
+  method         String
+  status         String
+  createdAt      DateTime @default(now())
 }

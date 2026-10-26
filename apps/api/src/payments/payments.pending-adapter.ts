@@ -1,19 +1,13 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import type {
-  PaymentOrder,
+  PayOnceInput,
   PaymentOrdersStore,
+  PaymentResult,
 } from './payments.contract.js';
 
 @Injectable()
 export class PaymentsPendingAdapter implements PaymentOrdersStore {
-  async findOrderById(_id: number): Promise<PaymentOrder | null> {
-    throw new ServiceUnavailableException('Orders database not integrated yet');
-  }
-
-  async updateOrderStatus(
-    _id: number,
-    _status: 'PAID' | 'PAYMENT_FAILED',
-  ): Promise<void> {
+  async payOnce(_input: PayOnceInput): Promise<PaymentResult> {
     throw new ServiceUnavailableException('Orders database not integrated yet');
   }
 }
