@@ -165,13 +165,46 @@ describe.skipIf(!integrationEnabled)(
         historyB.body.map((order: { id: number }) => order.id),
       ).not.toContain(created.body.orderId);
 
+      await http
+      .post('/orders')
+      .set('Authorization', `Bearer ${userA.token}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send({ items: [{ productId: product.id, quantity: 3 }] })
+      .expect(409);
+
+      const discounted = await http
+        .post('/orders')
+        .set('Authorization', `Bearer ${userA.token}`)
+        .send({
+          items: [{ productId: product.id, quantity: 2 }],
+          promoCode: 'BREW10',
+        })
+        .expect(201);
+      expect(discounted.body.total).toBe(45000);
+
+      const savedDiscount = await prisma.order.findUniqueOrThrow({
+        where: { id: discounted.body.orderId as number },
+      });
+      expect(savedDiscount.total).toBe(45000);
+      expect(savedDiscount.discount).toBe(5000);
+      expect(savedDiscount.promoCode).toBe('BREW10');
+
+      await http
+      .post('/orders')
+      .set('Authorization', `Bearer ${userA.token}`)
+      .send({
+        items: [{ productId: product.id, quantity: 1 }],
+        promoCode: 'INVALID',
+      })
+      .expect(400);
+
       await http.get('/orders/me').expect(401);
       await http.post('/orders').send(firstPayload).expect(401);
       await http
-        .post('/orders')
-        .set('Authorization', `Bearer ${userA.token}`)
-        .send({ items: [], total: 1 })
-        .expect(400);
+      .post('/orders')
+      .set('Authorization', `Bearer ${userA.token}`)
+      .send({ items: [], total: 1 })
+      .expect(400);
     });
   },
 );
