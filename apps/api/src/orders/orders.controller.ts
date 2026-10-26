@@ -1,4 +1,13 @@
-import { Body, Controller, Post, Req, UnauthorizedException, UseGuards, ValidationPipe } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  Post,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+  ValidationPipe,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
@@ -12,9 +21,20 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
-  create(@Body(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true })) body: CreateOrderDto, @Req() request: AuthRequest) {
+  create(
+    @Body(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
+    body: CreateOrderDto,
+    @Req() request: AuthRequest,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
     const userId = request.user?.id;
     if (!userId) throw new UnauthorizedException('JWT required');
-    return this.ordersService.create(userId, body);
+    return this.ordersService.create(userId, body, idempotencyKey);
   }
 }
