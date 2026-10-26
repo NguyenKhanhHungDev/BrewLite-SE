@@ -17,20 +17,28 @@ model Product {
 }
 
 model User {
-  id           Int     @id @default(autoincrement())
-  email        String  @unique
-  passwordHash String
-  orders       Order[]
+  id            Int     @id @default(autoincrement())
+  email         String  @unique
+  passwordHash  String
+  loyaltyPoints Int     @default(0)
+  orders        Order[]
 }
 
 model Order {
-  id        Int         @id @default(autoincrement())
-  userId    Int
-  user      User        @relation(fields: [userId], references: [id])
-  status    String      @default("PENDING")
-  total     Int
-  createdAt DateTime    @default(now())
-  items     OrderItem[]
+  id              Int         @id @default(autoincrement())
+  userId          Int
+  user            User        @relation(fields: [userId], references: [id])
+  status          String      @default("PENDING")
+  total           Int // Tổng tiền thực trả sau giảm giá (VND)
+  discount        Int         @default(0)
+  promoCode       String?
+  loyaltyAwarded  Boolean     @default(false)
+  idempotencyKey  String?
+  idempotencyHash String?
+  createdAt       DateTime    @default(now())
+  items           OrderItem[]
+
+  @@unique([userId, idempotencyKey])
 }
 
 model OrderItem {

@@ -1,4 +1,4 @@
-export type OrderStatus = 'PENDING' | 'PAID' | 'PAYMENT_FAILED';
+export type { OrderStatus } from './order-state.js';
 export type Size = 'S' | 'M' | 'L';
 export type Topping = 'PEARL' | 'CREAM';
 
@@ -21,12 +21,27 @@ export interface OrderDraft {
   userId: number;
   status: 'PENDING';
   total: number;
+  discount: number;
+  promoCode: string | null;
+  idempotencyKey: string | null;
+  idempotencyHash: string | null;
   items: OrderLine[];
+}
+
+export interface StoredOrderResult {
+  id: number;
+  status: string;
+  total: number;
+  idempotencyHash: string | null;
 }
 
 export interface OrdersStore {
   getProductById(id: number): Promise<ProductSnapshot | null>;
-  saveOrder(draft: OrderDraft): Promise<{ id: number }>;
+  findOrderByIdempotencyKey(
+    userId: number,
+    key: string,
+  ): Promise<StoredOrderResult | null>;
+  saveOrder(draft: OrderDraft): Promise<StoredOrderResult>;
 }
 
 export const ORDERS_STORE = Symbol('ORDERS_STORE');
