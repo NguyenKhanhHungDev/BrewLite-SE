@@ -6,7 +6,6 @@ const nextConfig: NextConfig = {
     const apiOrigin = process.env.API_INTERNAL_URL ?? "http://localhost:3001";
     return [
       { source: "/products", destination: `${apiOrigin}/products` },
-      { source: "/products/:id", destination: `${apiOrigin}/products/:id` },
     ];
   },
   experimental: {
