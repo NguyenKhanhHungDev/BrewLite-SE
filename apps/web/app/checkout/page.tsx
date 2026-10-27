@@ -7,6 +7,8 @@ import { useCart } from "@/components/CartProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { useCheckout } from "@/components/CheckoutProvider";
 import CartSummary from "@/components/CartSummary";
+import PromotionField from "@/components/PromotionField";
+import LoyaltyBalance from "@/components/LoyaltyBalance";
 import {
   paidStatuses,
   statusNames,
@@ -15,6 +17,7 @@ import {
 } from "@/lib/orders";
 import { money } from "@/lib/pricing";
 import { cartTotal } from "@/lib/cart";
+import { previewPromotion } from "@/lib/promotion";
 
 export default function CheckoutPage() {
   const cart = useCart();
@@ -38,11 +41,24 @@ export default function CheckoutPage() {
   const attempt = purchase ? checkout.attempt : null;
   const draft =
     checkout.draft?.owner === auth.session?.userId ? checkout.draft : null;
+  const promoCode = purchase
+    ? (purchase.promoCode ?? "")
+    : draft
+      ? (draft.promoCode ?? "")
+      : checkout.appliedCode;
+  const summaryLines = purchase?.snapshot ?? draft?.snapshot ?? cart.lines;
+  const preview = previewPromotion(
+    cartTotal(summaryLines),
+    promoCode || undefined,
+  );
 
   async function createOrder() {
     setError("");
     try {
-      const order = await checkout.createOrder(cart.lines);
+      const order = await checkout.createOrder(
+        cart.lines,
+        checkout.appliedCode || undefined,
+      );
       if (paidStatuses.includes(order.status) || order.status === "CANCELLED") {
         router.push(`/confirmation/${order.orderId}`);
       }
@@ -144,10 +160,10 @@ export default function CheckoutPage() {
                       Tổng tiền đã chốt:{" "}
                       <strong>{money(purchase.total)}</strong>
                     </p>
-                    {purchase.total !== cartTotal(purchase.snapshot) && (
+                    {purchase.total !== preview.payable && (
                       <p className="bl-alert" role="status">
-                        Tổng tiền đã thay đổi. Vui lòng kiểm tra trước khi
-                        thanh toán.
+                        Tổng tiền đã thay đổi. Vui lòng kiểm tra trước khi thanh
+                        toán.
                       </p>
                     )}
                     <p className="bl-muted">
@@ -222,10 +238,31 @@ export default function CheckoutPage() {
                   </>
                 )}
               </section>
-              <CartSummary
-                lines={purchase?.snapshot ?? draft?.snapshot ?? cart.lines}
-                total={purchase?.total}
-              />
+              <div className="bl-checkout-summary">
+                <section className="bl-panel" aria-label="Khuyến mãi">
+                  <PromotionField
+                    locked={Boolean(purchase || draft || checkout.draft)}
+                    code={promoCode}
+                  />
+                </section>
+                <CartSummary
+                  lines={summaryLines}
+                  total={purchase?.total}
+                  promoCode={promoCode || undefined}
+                  showBreakdown
+                />
+                <LoyaltyBalance
+                  refreshKey={
+                    purchase
+                      ? `${purchase.orderId}:${purchase.status}`
+                      : "checkout"
+                  }
+                  estimatedPoints={Math.floor(
+                    (purchase?.total ?? preview.payable) / 10000,
+                  )}
+                  estimateIsPreview={!purchase}
+                />
+              </div>
             </div>
           )}
         </>

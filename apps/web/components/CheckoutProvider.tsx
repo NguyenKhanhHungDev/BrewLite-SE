@@ -12,6 +12,7 @@ import {
 import { ApiError, isObject, requestJson } from "@/lib/api";
 import { cartTotal, orderItems, parseCart, type CartLine } from "@/lib/cart";
 import { parseProducts } from "@/lib/products";
+import { parsePromoCode, previewPromotion } from "@/lib/promotion";
 import {
   paidStatuses,
   parseHistory,
@@ -26,7 +27,12 @@ import {
 import { useAuth } from "./AuthProvider";
 import { useCart } from "./CartProvider";
 
-type Draft = { owner: number; key: string; snapshot: CartLine[] };
+type Draft = {
+  owner: number;
+  key: string;
+  snapshot: CartLine[];
+  promoCode?: string;
+};
 type Purchase = Draft & OrderResult & { cartCleared: boolean };
 type Attempt = { key: string; body: PaymentBody };
 type State = {
@@ -34,17 +40,24 @@ type State = {
   purchase: Purchase | null;
   attempt: Attempt | null;
   ready: boolean;
+  inputCode: string;
+  appliedCode: string;
 };
 const empty: State = {
   draft: null,
   purchase: null,
   attempt: null,
   ready: false,
+  inputCode: "",
+  appliedCode: "",
 };
 type CheckoutApi = State & {
   busy: boolean;
   storageNotice: string;
-  createOrder: (lines: CartLine[]) => Promise<OrderResult>;
+  setPromoInput: (value: string) => void;
+  applyPromo: () => void;
+  removePromo: () => void;
+  createOrder: (lines: CartLine[], promoCode?: string) => Promise<OrderResult>;
   pay: (method: PaymentMethod, result: SimulateResult) => Promise<OrderResult>;
   syncOrder: (order: OrderRecord) => void;
 };
@@ -62,7 +75,13 @@ function parseDraft(value: unknown): Draft {
     throw new Error();
   const snapshot = parseCart(value.snapshot);
   if (!snapshot.length) throw new Error();
-  return { owner: Number(value.owner), key: value.key, snapshot };
+  const promoCode = parsePromoCode(value.promoCode);
+  return {
+    owner: Number(value.owner),
+    key: value.key,
+    snapshot,
+    ...(promoCode ? { promoCode } : {}),
+  };
 }
 
 function restore(value: unknown): State {
@@ -102,7 +121,15 @@ function restore(value: unknown): State {
       },
     };
   }
-  return { draft, purchase, attempt, ready: true };
+  const appliedCode =
+    value.appliedCode === undefined
+      ? (draft?.promoCode ?? purchase?.promoCode ?? "")
+      : value.appliedCode === ""
+        ? ""
+        : (parsePromoCode(value.appliedCode) ?? "");
+  const inputCode = value.inputCode ?? appliedCode;
+  if (typeof inputCode !== "string" || inputCode.length > 64) throw new Error();
+  return { draft, purchase, attempt, ready: true, inputCode, appliedCode };
 }
 
 export default function CheckoutProvider({
@@ -121,7 +148,7 @@ function CheckoutStore({ children }: { children: ReactNode }) {
   const current = useRef(state);
   const processing = useRef(false);
   const { session, request } = useAuth();
-  const { reconcile, completePurchase } = useCart();
+  const { lines: cartLines, reconcile, completePurchase } = useCart();
   const commit = useCallback((next: State) => {
     current.current = next;
     setState(next);
@@ -184,7 +211,46 @@ function CheckoutStore({ children }: { children: ReactNode }) {
     [session?.userId, commit, completePurchase],
   );
 
-  async function createOrder(lines: CartLine[]): Promise<OrderResult> {
+  function checkPromoEditable() {
+    const { draft, purchase } = current.current;
+    if (
+      !current.current.ready ||
+      processing.current ||
+      draft ||
+      (purchase &&
+        purchase.owner === session?.userId &&
+        !paidStatuses.includes(purchase.status) &&
+        purchase.status !== "CANCELLED")
+    ) {
+      throw new Error("Không thể đổi mã cho yêu cầu đã gửi.");
+    }
+  }
+
+  function setPromoInput(value: string) {
+    checkPromoEditable();
+    if (value.length > 64) throw new Error("Mã có tối đa 64 ký tự.");
+    commit({ ...current.current, inputCode: value });
+  }
+
+  function applyPromo() {
+    checkPromoEditable();
+    const code = parsePromoCode(current.current.inputCode);
+    if (!code) throw new Error("Nhập mã giảm giá.");
+    const preview = previewPromotion(cartTotal(cartLines), code);
+    if (preview.payable <= 0)
+      throw new Error("Giỏ hàng phải có tổng tiền lớn hơn 0.");
+    commit({ ...current.current, inputCode: code, appliedCode: code });
+  }
+
+  function removePromo() {
+    checkPromoEditable();
+    commit({ ...current.current, inputCode: "", appliedCode: "" });
+  }
+
+  async function createOrder(
+    lines: CartLine[],
+    promoCode?: string,
+  ): Promise<OrderResult> {
     if (processing.current) throw new Error("Yêu cầu đang được xử lý.");
     if (!state.ready || !session)
       throw new Error("Vui lòng đăng nhập trước khi tạo đơn.");
@@ -201,6 +267,7 @@ function CheckoutStore({ children }: { children: ReactNode }) {
       if (draft && draft.owner !== session.userId)
         throw new Error("Hãy đăng nhập đúng tài khoản đã gửi yêu cầu tạo đơn.");
       if (!draft) {
+        const code = parsePromoCode(promoCode);
         const catalog = parseProducts(await requestJson("/products"));
         const checked = reconcile(catalog);
         if (checked.issues.length) throw new Error(checked.issues.join(" "));
@@ -218,6 +285,7 @@ function CheckoutStore({ children }: { children: ReactNode }) {
           owner: session.userId,
           key: crypto.randomUUID(),
           snapshot: parseCart(checked.lines),
+          ...(code ? { promoCode: code } : {}),
         };
         commit({ ...current.current, draft });
       }
@@ -228,10 +296,14 @@ function CheckoutStore({ children }: { children: ReactNode }) {
             "Content-Type": "application/json",
             "Idempotency-Key": draft.key,
           },
-          body: JSON.stringify({ items: orderItems(draft.snapshot) }),
+          body: JSON.stringify({
+            items: orderItems(draft.snapshot),
+            ...(draft.promoCode ? { promoCode: draft.promoCode } : {}),
+          }),
         });
         const order = parseOrderResult(data);
         commit({
+          ...current.current,
           ready: true,
           draft: null,
           purchase: { ...draft, ...order, cartCleared: false },
@@ -332,7 +404,17 @@ function CheckoutStore({ children }: { children: ReactNode }) {
 
   return (
     <Context.Provider
-      value={{ ...state, busy, storageNotice, createOrder, pay, syncOrder }}
+      value={{
+        ...state,
+        busy,
+        storageNotice,
+        setPromoInput,
+        applyPromo,
+        removePromo,
+        createOrder,
+        pay,
+        syncOrder,
+      }}
     >
       {children}
     </Context.Provider>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "./AuthProvider";
 import { useCheckout } from "./CheckoutProvider";
 import OrderCard from "./OrderCard";
+import LoyaltyBalance from "./LoyaltyBalance";
 import { requestJson } from "@/lib/api";
 import { parseHistory, paidStatuses, type OrderRecord } from "@/lib/orders";
 import { parseProducts, type Product } from "@/lib/products";
@@ -149,6 +150,11 @@ function OrdersData({ orderId }: { orderId?: string }) {
           </div>
         ))}
       </div>
+      {orderId && (
+        <LoyaltyBalance
+          refreshKey={`${selected.id}:${selected.status}:${attempt}`}
+        />
+      )}
       <div className="bl-actions">
         <button
           type="button"
