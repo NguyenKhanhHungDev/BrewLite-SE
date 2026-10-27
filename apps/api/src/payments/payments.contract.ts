@@ -8,14 +8,20 @@ export interface PaymentRequest {
   simulateResult: SimulateResult;
 }
 
-export interface PaymentOrder {
-  id: number;
-  status: PaymentOrderStatus;
+export interface PaymentResult {
+  orderId: number;
+  status: 'PAID' | 'PAYMENT_FAILED';
+}
+
+export interface PayOnceInput {
+  userId: number;
+  idempotencyKey: string;
+  requestHash: string;
+  request: PaymentRequest;
 }
 
 export interface PaymentOrdersStore {
-  findOrderById(id: number): Promise<PaymentOrder | null>;
-  updateOrderStatus(id: number, status: 'PAID' | 'PAYMENT_FAILED'): Promise<void>;
+  payOnce(input: PayOnceInput): Promise<PaymentResult>;
 }
 
 export const PAYMENT_ORDERS_STORE = Symbol('PAYMENT_ORDERS_STORE');
