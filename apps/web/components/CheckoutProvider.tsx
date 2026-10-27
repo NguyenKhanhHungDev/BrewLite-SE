@@ -239,6 +239,18 @@ function CheckoutStore({ children }: { children: ReactNode }) {
         });
         return order;
       } catch (error) {
+        const inventoryConflict =
+          error instanceof ApiError &&
+          error.status === 409 &&
+          error.message === "Tồn kho vừa thay đổi, hãy thử lại";
+
+        if (inventoryConflict) {
+          commit({ ...current.current, draft: null });
+          throw new Error(
+            "Tồn kho vừa thay đổi, đơn chưa được tạo. Hãy về giỏ kiểm tra món và số lượng rồi xác nhận lại.",
+          );
+        }
+
         if (
           error instanceof ApiError &&
           error.status >= 400 &&
