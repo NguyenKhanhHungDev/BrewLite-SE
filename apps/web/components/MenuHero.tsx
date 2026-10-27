@@ -1,4 +1,5 @@
 import type { Product } from "@/lib/products";
+import Link from "next/link";
 import ProductImage from "./ProductImage";
 
 export default function MenuHero({ product }: { product?: Product }) {
@@ -33,7 +34,11 @@ export default function MenuHero({ product }: { product?: Product }) {
       </div>
       <div className="bl-hero-image">
         {product ? (
-          <>
+          <Link
+            href={`/products/${product.id}`}
+            className="bl-hero-product-link"
+            aria-label={`Xem chi tiết ${product.name}`}
+          >
             <ProductImage src={product.imageUrl} name={product.name} hero />
             <div className="bl-hero-note">
               <span aria-hidden="true">✦</span>
@@ -42,7 +47,7 @@ export default function MenuHero({ product }: { product?: Product }) {
                 <strong>{product.name}</strong>
               </div>
             </div>
-          </>
+          </Link>
         ) : (
           <div className="bl-hero-decoration" aria-hidden="true">
             <span className="bl-decoration-ring" />

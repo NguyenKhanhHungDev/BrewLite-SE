@@ -35,7 +35,6 @@ export default function CartSummary({
         </span>
         <strong>{money(total ?? cartTotal(lines))}</strong>
       </div>
-      <p className="bl-muted">Nhận đồ uống tại quầy BrewLite.</p>
     </section>
   );
 }
