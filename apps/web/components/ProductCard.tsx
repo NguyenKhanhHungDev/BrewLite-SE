@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Product } from "@/lib/products";
 import ProductImage from "./ProductImage";
 
@@ -13,6 +14,9 @@ export default function ProductCard({ product }: { product: Product }) {
         <p className="bl-product-price">
           {product.price.toLocaleString("vi-VN")} <span>VND</span>
         </p>
+        <Link href={`/products/${product.id}`} className="bl-detail-link">
+          Xem chi tiết
+        </Link>
       </div>
     </article>
   );
