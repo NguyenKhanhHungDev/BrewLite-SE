@@ -13,6 +13,7 @@ model Product {
   price      Int
   imageUrl   String
   stock      Int
+  version Int @default(0)
   orderItems OrderItem[]
 }
 
