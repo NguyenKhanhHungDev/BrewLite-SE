@@ -7,7 +7,6 @@ import ProductImage from "@/components/ProductImage";
 import { parseProducts, type Product } from "@/lib/products";
 import {
   money,
-  sizeDelta,
   toppingPrice,
   toppingNames,
   unitPrice,
@@ -205,9 +204,7 @@ function ProductDetail({ id }: { id: string }) {
                   <span>
                     <strong>Size {option}</strong>
                     <small>
-                      {option === "M"
-                        ? "Giá gốc"
-                        : `${option === "S" ? "−" : "+"}${Math.abs(sizeDelta[option]).toLocaleString("vi-VN")}đ`}
+                      {money(unitPrice(product.price, option, []))}
                     </small>
                   </span>
                 </label>
@@ -216,7 +213,7 @@ function ProductDetail({ id }: { id: string }) {
           </fieldset>
 
           <fieldset>
-            <legend>Chọn topping (không bắt buộc)</legend>
+            <legend>Chọn topping</legend>
             {(["PEARL", "CREAM"] as const).map((option) => (
               <label key={option} className="bl-option bl-topping-option">
                 <input

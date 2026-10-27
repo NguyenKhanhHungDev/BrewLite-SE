@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Forward the existing Products API without changing the backend's CORS.
   async rewrites() {
     const apiOrigin = process.env.API_INTERNAL_URL ?? "http://localhost:3001";
     return [

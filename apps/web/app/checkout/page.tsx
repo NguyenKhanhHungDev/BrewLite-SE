@@ -72,7 +72,6 @@ export default function CheckoutPage() {
       <div className="bl-page-title">
         <p className="bl-eyebrow">Nhận tại quầy</p>
         <h1>Thanh toán</h1>
-        <p>Kiểm tra món và tổng tiền trước khi xác nhận.</p>
       </div>
       {!cart.ready || !checkout.ready ? (
         <p role="status">Đang tải...</p>
@@ -115,7 +114,6 @@ export default function CheckoutPage() {
                 ) : !purchase ? (
                   <>
                     <h2>Xác nhận đơn hàng</h2>
-                    <p>Giá và tồn kho sẽ được máy chủ kiểm tra khi tạo đơn.</p>
                     {checkout.draft?.owner === auth.session.userId && (
                       <p className="bl-alert">
                         Yêu cầu tạo đơn trước chưa có kết quả. Kiểm tra lại để
@@ -148,13 +146,12 @@ export default function CheckoutPage() {
                     </p>
                     {purchase.total !== cartTotal(purchase.snapshot) && (
                       <p className="bl-alert" role="status">
-                        Tổng tiền máy chủ khác tạm tính ban đầu. Hãy kiểm tra
-                        tổng đã chốt trước khi thanh toán.
+                        Tổng tiền đã thay đổi. Vui lòng kiểm tra trước khi
+                        thanh toán.
                       </p>
                     )}
                     <p className="bl-muted">
-                      Danh sách món thuộc đơn đã tạo. Thay đổi giỏ không sửa đơn
-                      này.
+                      Thay đổi giỏ không thay đổi đơn đã tạo.
                     </p>
                     {attempt && (
                       <p className="bl-alert" role="status">
@@ -182,7 +179,6 @@ export default function CheckoutPage() {
                                 ? "Ví điện tử"
                                 : "Thẻ mô phỏng"}
                             </strong>
-                            <small>{value}</small>
                           </span>
                         </label>
                       ))}
@@ -203,8 +199,7 @@ export default function CheckoutPage() {
                       </select>
                     </label>
                     <p className="bl-muted">
-                      Thanh toán giả lập, không thu tiền thật và không nhập
-                      thông tin thẻ thật.
+                      Thanh toán mô phỏng, không thu tiền thật.
                     </p>
                     <button
                       className="bl-button bl-full"
