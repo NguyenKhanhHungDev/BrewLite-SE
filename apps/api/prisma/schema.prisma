@@ -38,7 +38,7 @@ model Order {
   idempotencyHash String?
   createdAt       DateTime    @default(now())
   items           OrderItem[]
-
+  payments        Payment[]
   @@unique([userId, idempotencyKey])
 }
 
@@ -54,3 +54,17 @@ model OrderItem {
   unitPrice Int
   subtotal  Int
 }
+model Payment {
+  id             Int      @id @default(autoincrement())
+  orderId        Int
+  order          Order    @relation(fields: [orderId], references: [id])
+  userId         Int
+  idempotencyKey String
+  requestHash    String
+  amount         Int
+  method         String
+  status         String
+  createdAt      DateTime @default(now())
+
+  @@unique([userId, idempotencyKey])
+} 

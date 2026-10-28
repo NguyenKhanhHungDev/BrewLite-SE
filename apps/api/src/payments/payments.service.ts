@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   Inject,
   Injectable,
-  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   PAYMENT_ORDERS_STORE,
@@ -19,9 +20,10 @@ function parsePayment(body: unknown): PaymentRequest {
     throw new BadRequestException('Invalid payment body');
   }
   const keys = Object.keys(body);
-  if (keys.length !== 3 || keys.some(
-    (key) => !['orderId', 'method', 'simulateResult'].includes(key),
-  )) {
+  if (
+    keys.length !== 3 ||
+    keys.some((key) => !['orderId', 'method', 'simulateResult'].includes(key))
+  ) {
     throw new BadRequestException('Expected orderId, method, simulateResult');
   }
   if (!Number.isSafeInteger(body.orderId) || Number(body.orderId) <= 0) {
@@ -40,6 +42,28 @@ function parsePayment(body: unknown): PaymentRequest {
   };
 }
 
+function parseIdempotencyKey(rawKey: unknown): string {
+  if (typeof rawKey !== 'string') {
+    throw new BadRequestException('Idempotency-Key header is required');
+  }
+  const trimmed = rawKey.trim();
+  if (trimmed.length < 1 || trimmed.length > 200) {
+    throw new BadRequestException(
+      'Idempotency-Key must be between 1 and 200 characters',
+    );
+  }
+  return trimmed;
+}
+
+export function hashPaymentRequest(dto: PaymentRequest): string {
+  const canonical = JSON.stringify({
+    orderId: dto.orderId,
+    method: dto.method,
+    simulateResult: dto.simulateResult,
+  });
+  return createHash('sha256').update(canonical).digest('hex');
+}
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -47,19 +71,19 @@ export class PaymentsService {
     private readonly ordersStore: PaymentOrdersStore,
   ) {}
 
-  async pay(requestBody: unknown) {
-    const dto = parsePayment(requestBody);
-    const order = await this.ordersStore.findOrderById(dto.orderId);
-    if (!order) throw new NotFoundException('Order not found');
-    if (order.status !== 'PENDING') {
-      throw new BadRequestException('Only PENDING orders can be paid');
+  async pay(userId: unknown, idempotencyKey: unknown, requestBody: unknown) {
+    if (!Number.isSafeInteger(userId) || Number(userId) <= 0) {
+      throw new UnauthorizedException('JWT required');
     }
+    const key = parseIdempotencyKey(idempotencyKey);
+    const request = parsePayment(requestBody);
+    const requestHash = hashPaymentRequest(request);
 
-    const nextStatus = dto.simulateResult === 'SUCCESS'
-      ? 'PAID' as const
-      : 'PAYMENT_FAILED' as const;
-    await this.ordersStore.updateOrderStatus(order.id, nextStatus);
-
-    return { orderId: order.id, status: nextStatus };
+    return this.ordersStore.payOnce({
+      userId: Number(userId),
+      idempotencyKey: key,
+      requestHash,
+      request,
+    });
   }
 }
