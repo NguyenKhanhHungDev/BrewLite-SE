@@ -34,7 +34,7 @@ const prisma = new PrismaClient({
 
 // 10 ảnh nằm tại apps/web/public/images/products/ trong gói dữ liệu mẫu.
 // URL được Next.js phục vụ từ thư mục public, không ghi chữ "public" vào URL.
-const imageOf = (fileName: string) => `/images/products/${fileName}.svg`;
+const imageOf = (fileName: string) => `/images/products/${fileName}.jpg`;
 
 const products = [
   { name: 'Cà phê sữa', price: 35000, imageUrl: imageOf('ca-phe-sua'), stock: 30 },
@@ -49,8 +49,8 @@ const products = [
   { name: 'Trà chanh', price: 29000, imageUrl: imageOf('tra-chanh'), stock: 40 },
 ];
 
-// Ba mẫu cũ trỏ tới ảnh .jpg chưa tồn tại. Chỉ sửa đường dẫn ảnh mẫu
-// cũ hoặc placeholder; không ghi đè ảnh thật do nhóm tự bổ sung.
+// Chỉ sửa URL ảnh mẫu cũ (kể cả bộ SVG) hoặc placeholder;
+// không ghi đè ảnh riêng do nhóm tự bổ sung.
 const oldImageUrls: Record<string, string> = {
   'Cà phê sữa': '/images/ca-phe-sua.jpg',
   'Trà đào': '/images/tra-dao.jpg',
@@ -76,6 +76,7 @@ async function main() {
     reused++;
     if (
       existing.imageUrl === oldImageUrls[product.name] ||
+      existing.imageUrl === product.imageUrl.replace(/\.jpg$/, '.svg') ||
       existing.imageUrl === '/images/drink-placeholder.svg'
     ) {
       await prisma.product.update({
