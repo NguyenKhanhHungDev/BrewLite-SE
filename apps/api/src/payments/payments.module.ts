@@ -4,14 +4,16 @@ import { PAYMENT_ORDERS_STORE } from './payments.contract.js';
 import { PaymentsController } from './payments.controller.js';
 import { PaymentsPrismaAdapter } from './payments.prisma-adapter.js';
 import { PaymentsService } from './payments.service.js';
+import { VnpayService } from './vnpay.service.js';
 
 @Module({
   imports: [AuthModule],
   controllers: [PaymentsController],
   providers: [
     PaymentsService,
+    VnpayService,
     { provide: PAYMENT_ORDERS_STORE, useClass: PaymentsPrismaAdapter },
   ],
-  exports: [PaymentsService],
+  exports: [PaymentsService, VnpayService],
 })
 export class PaymentsModule {}

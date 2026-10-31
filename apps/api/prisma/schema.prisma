@@ -55,16 +55,20 @@ model OrderItem {
   subtotal  Int
 }
 model Payment {
-  id             Int      @id @default(autoincrement())
-  orderId        Int
-  order          Order    @relation(fields: [orderId], references: [id])
-  userId         Int
-  idempotencyKey String
-  requestHash    String
-  amount         Int
-  method         String
-  status         String
-  createdAt      DateTime @default(now())
+  id                    Int       @id @default(autoincrement())
+  orderId               Int
+  order                 Order     @relation(fields: [orderId], references: [id])
+  userId                Int?
+  provider              String    @default("VNPAY")
+  transactionRef        String?   @unique
+  providerTransactionId String?
+  idempotencyKey        String?
+  requestHash           String?
+  amount                Int
+  method                String    @default("VNPAY")
+  status                String    @default("PENDING")
+  paidAt                DateTime?
+  createdAt             DateTime  @default(now())
 
   @@unique([userId, idempotencyKey])
-} 
+}
