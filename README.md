@@ -177,3 +177,7 @@ Các ô đã đánh dấu là kết quả kiểm thử thủ công trên máy th
 | Payment `404`/`503` | Kiểm tra module Payment đã được tích hợp vào API hay chưa; không tính là đã hoàn tất |
 
 Chi tiết khởi động, truy vấn DB và lưu dữ liệu: [docs/docker-run.md](docs/docker-run.md).
+
+Phần Recipes/Products mới đang được chuẩn bị bằng interface/mock, chưa bật vào API
+do chờ schema, quyền Admin và Orders dùng Recipe. Xem [bàn giao Recipes/Products](docs/recipes-products-handoff.md)
+để biết file thêm, kết quả kiểm tra và điều kiện tích hợp.
