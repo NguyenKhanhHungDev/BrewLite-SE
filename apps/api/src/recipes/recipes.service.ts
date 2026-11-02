@@ -5,7 +5,7 @@ import { CreateRecipeDto } from './dto/create-recipe.dto.js';
 import { UpdateRecipeDto } from './dto/update-recipe.dto.js';
 import type { RecipesRepository, RecipesTransaction } from './recipes.contract.js';
 
-// Dependency-neutral preparation: intentionally not registered in AppModule.
+// Business validation is shared by HTTP routes and repository-level callers.
 export class RecipesService {
   constructor(private readonly repository: RecipesRepository) {}
 

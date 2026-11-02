@@ -1,81 +1,52 @@
 import { NotFoundException } from '@nestjs/common';
 import { ProductsService } from './products.service.js';
+import type { RecipesPrismaAdapter } from '../recipes/recipes.prisma-adapter.js';
 
-describe('ProductsService', () => {
-  let service: ProductsService;
-
-  const mockPrisma = {
-    product: {
-      findMany: vi.fn(),
-      findUnique: vi.fn(),
-    },
-    $disconnect: vi.fn(),
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-
-    service = Object.create(ProductsService.prototype) as ProductsService;
-    Object.assign(service, { prisma: mockPrisma });
-  });
-
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
-
-  it('should return all products', async () => {
-    const products = [
+describe('Recipe-backed ProductsService', () => {
+  const recipe = {
+    id: 17,
+    name: 'Coffee',
+    price: 35000,
+    imageUrl: '/images/products/ca-phe-sua.jpg',
+    isActive: true,
+    ingredients: [
       {
-        id: 1,
-        name: 'Cà phê sữa',
-        price: 35000,
-        imageUrl: '/images/ca-phe-sua.jpg',
-        stock: 30,
+        ingredientId: 3,
+        quantity: 20,
+        ingredient: { name: 'Coffee', unit: 'g', stock: 200, reserved: 40 },
       },
-    ];
-
-    mockPrisma.product.findMany.mockResolvedValue(products);
-
-    const result = await service.findAll();
-
-    expect(result).toEqual(products);
-    expect(mockPrisma.product.findMany).toHaveBeenCalledWith({
-      orderBy: { id: 'asc' },
-    });
-  });
-
-  it('should return a product by id', async () => {
-    const product = {
-      id: 1,
-      name: 'Cà phê sữa',
-      price: 35000,
-      imageUrl: '/images/ca-phe-sua.jpg',
-      stock: 30,
+    ],
+  };
+  it('returns Recipe IDs with available inventory, excluding inactive recipes', async () => {
+    const repository = {
+      findAll: vi
+        .fn()
+        .mockResolvedValue([recipe, { ...recipe, id: 18, isActive: false }]),
     };
-
-    mockPrisma.product.findUnique.mockResolvedValue(product);
-
-    const result = await service.findOne(1);
-
-    expect(result).toEqual(product);
-    expect(mockPrisma.product.findUnique).toHaveBeenCalledWith({
-      where: { id: 1 },
-    });
-  });
-
-  it('should throw NotFoundException when product does not exist', async () => {
-    mockPrisma.product.findUnique.mockResolvedValue(null);
-
-    await expect(service.findOne(999)).rejects.toThrow(
-      NotFoundException,
+    const service = new ProductsService(
+      repository as unknown as RecipesPrismaAdapter,
     );
+    await expect(service.findAll()).resolves.toEqual([
+      {
+        id: 17,
+        name: 'Coffee',
+        price: 35000,
+        imageUrl: '/images/products/ca-phe-sua.jpg',
+        stock: 8,
+      },
+    ]);
   });
-
-  it('should disconnect Prisma when module is destroyed', async () => {
-    mockPrisma.$disconnect.mockResolvedValue(undefined);
-
-    await service.onModuleDestroy();
-
-    expect(mockPrisma.$disconnect).toHaveBeenCalledOnce();
+  it('returns 404 for missing or inactive recipes', async () => {
+    const repository = {
+      findById: vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ ...recipe, isActive: false }),
+    };
+    const service = new ProductsService(
+      repository as unknown as RecipesPrismaAdapter,
+    );
+    await expect(service.findOne(99)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.findOne(17)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

@@ -40,11 +40,8 @@ model Order {
   expiresAt       DateTime?
   createdAt       DateTime          @default(now())
   items           OrderItem[]
-<<<<<<< HEAD
   payments        Payment[]
-=======
   ingredientUses  OrderIngredient[]
->>>>>>> 0ec1a24 (feat(db): add ingredients recipes reservations and admin role)
 
   @@unique([userId, idempotencyKey])
 }
@@ -54,7 +51,7 @@ model OrderItem {
   orderId    Int
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId  Int?
-  product    Product? @relation(fields: [productId], references: [id])
+  product    Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
   recipeId   Int?
   recipe     Recipe?  @relation(fields: [recipeId], references: [id])
   recipeName String?
@@ -65,7 +62,6 @@ model OrderItem {
   subtotal   Int
 }
 
-<<<<<<< HEAD
 model Payment {
   id                    Int       @id @default(autoincrement())
   orderId               Int
@@ -84,7 +80,6 @@ model Payment {
 
   @@unique([userId, idempotencyKey])
 }
-=======
 model Ingredient {
   id          Int                @id @default(autoincrement())
   name        String             @unique
@@ -127,4 +122,3 @@ model OrderIngredient {
 
   @@id([orderId, ingredientId])
 }
->>>>>>> 0ec1a24 (feat(db): add ingredients recipes reservations and admin role)

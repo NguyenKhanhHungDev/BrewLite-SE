@@ -16,7 +16,7 @@ export function recipeToProduct(recipe: RecipeRecord) {
   return { id: recipe.id, name: recipe.name, price: recipe.price, imageUrl: recipe.imageUrl, stock };
 }
 
-// Activate only together with Recipe-based Orders and authenticated admin routes.
+// Uses the same Recipe IDs as Orders; legacy Product rows remain for history.
 export class RecipeMenuService {
   constructor(private readonly repository: RecipesRepository) {}
 
