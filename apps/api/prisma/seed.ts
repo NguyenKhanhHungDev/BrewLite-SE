@@ -1,102 +1,201 @@
-/**
- * BrewLite-SE – 10 dữ liệu đồ uống mẫu cho Assignment 1.
- *
- * Cách dùng:
- * 1. Sao chép toàn bộ nội dung file này thay cho BrewLite-SE/apps/api/prisma/seed.ts.
- * 2. Mở terminal tại BrewLite-SE/apps/api.
- * 3. Bảo đảm PostgreSQL đang chạy, .env có DATABASE_URL và đã chạy migration.
- * 4. Nếu chưa cài thư viện: npm install
- * 5. Tạo Prisma Client: npx prisma generate --config ./prisma7.config.ts
- * 6. Thêm dữ liệu: npx prisma db seed --config ./prisma7.config.ts
- * 7. Kiểm tra: GET http://localhost:3001/products (sau khi chạy API).
- *
- * Không chạy prisma migrate reset: lệnh reset sẽ xóa dữ liệu trong database.
- * Có thể chạy lại seed: sản phẩm trùng tên sẽ không được tạo thêm.
- * ID do PostgreSQL tự cấp, không tự đặt ID để tránh đè dữ liệu khác.
- *
- * Không bổ sung size/topping: schema Product hiện tại mới có
- * id, name, price, imageUrl, stock. Size/topping thuộc công việc A1-04
- * và cần được nhóm thống nhất riêng.
- */
+import { PrismaClient } from '../src/generated/prisma';
 
-import 'dotenv/config';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../src/generated/prisma/client';
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL is missing in apps/api/.env');
-}
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: databaseUrl }),
-});
-
-// 10 ảnh nằm tại apps/web/public/images/products/ trong gói dữ liệu mẫu.
-// URL được Next.js phục vụ từ thư mục public, không ghi chữ "public" vào URL.
-const imageOf = (fileName: string) => `/images/products/${fileName}.svg`;
-
-const products = [
-  { name: 'Cà phê sữa', price: 35000, imageUrl: imageOf('ca-phe-sua'), stock: 30 },
-  { name: 'Trà đào', price: 39000, imageUrl: imageOf('tra-dao'), stock: 25 },
-  { name: 'Bạc xỉu', price: 38000, imageUrl: imageOf('bac-xiu'), stock: 20 },
-  { name: 'Cà phê đen đá', price: 29000, imageUrl: imageOf('ca-phe-den-da'), stock: 35 },
-  { name: 'Cà phê muối', price: 42000, imageUrl: imageOf('ca-phe-muoi'), stock: 25 },
-  { name: 'Trà sữa trân châu', price: 45000, imageUrl: imageOf('tra-sua-tran-chau'), stock: 30 },
-  { name: 'Trà vải', price: 40000, imageUrl: imageOf('tra-vai'), stock: 20 },
-  { name: 'Matcha latte', price: 49000, imageUrl: imageOf('matcha-latte'), stock: 18 },
-  { name: 'Cacao sữa', price: 42000, imageUrl: imageOf('cacao-sua'), stock: 22 },
-  { name: 'Trà chanh', price: 29000, imageUrl: imageOf('tra-chanh'), stock: 40 },
-];
-
-// Ba mẫu cũ trỏ tới ảnh .jpg chưa tồn tại. Chỉ sửa đường dẫn ảnh mẫu
-// cũ hoặc placeholder; không ghi đè ảnh thật do nhóm tự bổ sung.
-const oldImageUrls: Record<string, string> = {
-  'Cà phê sữa': '/images/ca-phe-sua.jpg',
-  'Trà đào': '/images/tra-dao.jpg',
-  'Bạc xỉu': '/images/bac-xiu.jpg',
-};
+const prisma = new PrismaClient();
 
 async function main() {
-  let created = 0;
-  let reused = 0;
-  let fixedImage = 0;
+  console.log('🌱 Bắt đầu seed dữ liệu nguyên liệu và công thức...');
 
-  for (const product of products) {
-    const existing = await prisma.product.findFirst({
-      where: { name: product.name },
+  // 1. Danh sách nguyên liệu chuẩn (15 loại)
+  const ingredientsData = [
+    { name: 'Cà phê bột', unit: 'g', stock: 2000, minStock: 400 },
+    { name: 'Sữa đặc', unit: 'ml', stock: 2000, minStock: 400 },
+    { name: 'Sữa tươi', unit: 'ml', stock: 5000, minStock: 1000 },
+    { name: 'Trà khô', unit: 'g', stock: 1000, minStock: 200 },
+    { name: 'Nước', unit: 'ml', stock: 20000, minStock: 4000 },
+    { name: 'Đá', unit: 'g', stock: 10000, minStock: 2000 },
+    { name: 'Đường', unit: 'g', stock: 1000, minStock: 200 },
+    { name: 'Siro đào', unit: 'ml', stock: 1000, minStock: 200 },
+    { name: 'Siro vải', unit: 'ml', stock: 1000, minStock: 200 },
+    { name: 'Matcha', unit: 'g', stock: 1000, minStock: 200 },
+    { name: 'Bột cacao', unit: 'g', stock: 1000, minStock: 200 },
+    { name: 'Nước cốt chanh', unit: 'ml', stock: 1000, minStock: 200 },
+    { name: 'Muối', unit: 'g', stock: 1000, minStock: 200 },
+    { name: 'Kem sữa', unit: 'ml', stock: 1000, minStock: 200 },
+    { name: 'Trân châu', unit: 'g', stock: 1000, minStock: 200 },
+  ];
+
+  const ingredientMap = new Map<string, number>();
+
+  for (const ing of ingredientsData) {
+    // Dùng upsert để không ghi đè stock nếu đã có giao dịch
+    const existing = await prisma.ingredient.findUnique({ where: { name: ing.name } });
+    
+    let record;
+    if (!existing) {
+      record = await prisma.ingredient.create({
+        data: ing,
+      });
+    } else {
+      record = await prisma.ingredient.update({
+        where: { name: ing.name },
+        data: { unit: ing.unit, minStock: ing.minStock }, // Giữ nguyên stock cũ nếu đã tồn tại
+      });
+    }
+    ingredientMap.set(record.name, record.id);
+  }
+
+  // 2. Danh sách 10 công thức demo kèm định lượng size M
+  const recipesData = [
+    {
+      name: 'Cà phê sữa',
+      price: 35000,
+      imageUrl: '/images/products/ca-phe-sua.jpg',
+      recipeIngredients: [
+        { name: 'Cà phê bột', quantity: 20 },
+        { name: 'Sữa đặc', quantity: 30 },
+        { name: 'Nước', quantity: 100 },
+        { name: 'Đá', quantity: 100 },
+      ],
+    },
+    {
+      name: 'Trà đào',
+      price: 39000,
+      imageUrl: '/images/products/tra-dao.jpg',
+      recipeIngredients: [
+        { name: 'Trà khô', quantity: 8 },
+        { name: 'Siro đào', quantity: 35 },
+        { name: 'Nước', quantity: 180 },
+        { name: 'Đá', quantity: 100 },
+      ],
+    },
+    {
+      name: 'Bạc xỉu',
+      price: 38000,
+      imageUrl: '/images/products/bac-xiu.jpg',
+      recipeIngredients: [
+        { name: 'Cà phê bột', quantity: 10 },
+        { name: 'Sữa đặc', quantity: 35 },
+        { name: 'Sữa tươi', quantity: 100 },
+        { name: 'Đá', quantity: 100 },
+      ],
+    },
+    {
+      name: 'Cà phê đen đá',
+      price: 29000,
+      imageUrl: '/images/products/ca-phe-den-da.jpg',
+      recipeIngredients: [
+        { name: 'Cà phê bột', quantity: 20 },
+        { name: 'Nước', quantity: 120 },
+        { name: 'Đá', quantity: 100 },
+      ],
+    },
+    {
+      name: 'Cà phê muối',
+      price: 42000,
+      imageUrl: '/images/products/ca-phe-muoi.jpg',
+      recipeIngredients: [
+        { name: 'Cà phê bột', quantity: 20 },
+        { name: 'Sữa đặc', quantity: 25 },
+        { name: 'Kem sữa', quantity: 25 },
+        { name: 'Muối', quantity: 1 },
+        { name: 'Đá', quantity: 100 },
+      ],
+    },
+    {
+      name: 'Trà sữa trân châu',
+      price: 45000,
+      imageUrl: '/images/products/tra-sua-tran-chau.jpg',
+      recipeIngredients: [
+        { name: 'Trà khô', quantity: 8 },
+        { name: 'Sữa tươi', quantity: 150 },
+        { name: 'Đường', quantity: 15 },
+        { name: 'Trân châu', quantity: 40 },
+        { name: 'Đá', quantity: 100 },
+      ],
+    },
+    {
+      name: 'Trà vải',
+      price: 40000,
+      imageUrl: '/images/products/tra-vai.jpg',
+      recipeIngredients: [
+        { name: 'Trà khô', quantity: 8 },
+        { name: 'Siro vải', quantity: 35 },
+        { name: 'Nước', quantity: 180 },
+        { name: 'Đá', quantity: 100 },
+      ],
+    },
+    {
+      name: 'Matcha latte',
+      price: 49000,
+      imageUrl: '/images/products/matcha-latte.jpg',
+      recipeIngredients: [
+        { name: 'Matcha', quantity: 8 },
+        { name: 'Sữa tươi', quantity: 180 },
+        { name: 'Đường', quantity: 10 },
+        { name: 'Đá', quantity: 100 },
+      ],
+    },
+    {
+      name: 'Cacao sữa',
+      price: 42000,
+      imageUrl: '/images/products/cacao-sua.jpg',
+      recipeIngredients: [
+        { name: 'Bột cacao', quantity: 20 },
+        { name: 'Sữa tươi', quantity: 180 },
+        { name: 'Đường', quantity: 10 },
+        { name: 'Đá', quantity: 100 },
+      ],
+    },
+    {
+      name: 'Trà chanh',
+      price: 29000,
+      imageUrl: '/images/products/tra-chanh.jpg',
+      recipeIngredients: [
+        { name: 'Trà khô', quantity: 8 },
+        { name: 'Nước cốt chanh', quantity: 30 },
+        { name: 'Đường', quantity: 15 },
+        { name: 'Nước', quantity: 180 },
+        { name: 'Đá', quantity: 100 },
+      ],
+    },
+  ];
+
+  for (const rec of recipesData) {
+    const recipe = await prisma.recipe.upsert({
+      where: { name: rec.name },
+      update: { price: rec.price, imageUrl: rec.imageUrl },
+      create: {
+        name: rec.name,
+        price: rec.price,
+        imageUrl: rec.imageUrl,
+        isActive: true,
+      },
     });
 
-    if (!existing) {
-      await prisma.product.create({ data: product });
-      created++;
-      continue;
-    }
+    // Xóa liên kết cũ và tạo lại định lượng mới để tránh trùng lặp
+    await prisma.recipeIngredient.deleteMany({ where: { recipeId: recipe.id } });
 
-    reused++;
-    if (
-      existing.imageUrl === oldImageUrls[product.name] ||
-      existing.imageUrl === '/images/drink-placeholder.svg'
-    ) {
-      await prisma.product.update({
-        where: { id: existing.id },
-        data: { imageUrl: product.imageUrl },
-      });
-      fixedImage++;
+    for (const item of rec.recipeIngredients) {
+      const ingId = ingredientMap.get(item.name);
+      if (ingId) {
+        await prisma.recipeIngredient.create({
+          data: {
+            recipeId: recipe.id,
+            ingredientId: ingId,
+            quantity: item.quantity,
+          },
+        });
+      }
     }
   }
 
-  const totalInDatabase = await prisma.product.count();
-  console.log(`BrewLite seed: đã kiểm tra ${products.length} mẫu.`);
-  console.log(`Tạo mới: ${created}; đã có: ${reused}; sửa đường dẫn ảnh cũ: ${fixedImage}.`);
-  console.log(`Tổng bản ghi Product trong database: ${totalInDatabase}.`);
-  console.log('Nếu database đã có sản phẩm riêng trước đó, tổng có thể lớn hơn 10.');
+  console.log('✅ Seed dữ liệu thành công hoàn tất!');
 }
 
 main()
-  .catch((error: unknown) => {
-    console.error('Seed failed:', error);
-    process.exitCode = 1;
+  .catch((e) => {
+    console.error('❌ Lỗi khi chạy seed:', e);
+    process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();

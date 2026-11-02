@@ -13,47 +13,59 @@ model Product {
   price      Int
   imageUrl   String
   stock      Int
-  version Int @default(0)
+  version    Int         @default(0)
   orderItems OrderItem[]
 }
 
 model User {
-  id            Int     @id @default(autoincrement())
-  email         String  @unique
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
   passwordHash  String
-  loyaltyPoints Int     @default(0)
+  role          String   @default("CUSTOMER")
+  loyaltyPoints Int      @default(0)
   orders        Order[]
 }
 
 model Order {
-  id              Int         @id @default(autoincrement())
+  id              Int               @id @default(autoincrement())
   userId          Int
-  user            User        @relation(fields: [userId], references: [id])
-  status          String      @default("PENDING")
-  total           Int // Tổng tiền thực trả sau giảm giá (VND)
-  discount        Int         @default(0)
+  user            User              @relation(fields: [userId], references: [id])
+  status          String            @default("PENDING")
+  total           Int               // Tổng tiền thực trả sau giảm giá (VND)
+  discount        Int               @default(0)
   promoCode       String?
-  loyaltyAwarded  Boolean     @default(false)
+  loyaltyAwarded  Boolean           @default(false)
   idempotencyKey  String?
   idempotencyHash String?
-  createdAt       DateTime    @default(now())
+  expiresAt       DateTime?
+  createdAt       DateTime          @default(now())
   items           OrderItem[]
+<<<<<<< HEAD
   payments        Payment[]
+=======
+  ingredientUses  OrderIngredient[]
+>>>>>>> 0ec1a24 (feat(db): add ingredients recipes reservations and admin role)
+
   @@unique([userId, idempotencyKey])
 }
 
 model OrderItem {
-  id        Int     @id @default(autoincrement())
-  orderId   Int
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId Int
-  product   Product @relation(fields: [productId], references: [id])
-  quantity  Int
-  size      String  @default("M")
-  toppings  Json
-  unitPrice Int
-  subtotal  Int
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  Int?
+  product    Product? @relation(fields: [productId], references: [id])
+  recipeId   Int?
+  recipe     Recipe?  @relation(fields: [recipeId], references: [id])
+  recipeName String?
+  quantity   Int
+  size       String   @default("M")
+  toppings   Json
+  unitPrice  Int
+  subtotal   Int
 }
+
+<<<<<<< HEAD
 model Payment {
   id                    Int       @id @default(autoincrement())
   orderId               Int
@@ -72,3 +84,47 @@ model Payment {
 
   @@unique([userId, idempotencyKey])
 }
+=======
+model Ingredient {
+  id          Int                @id @default(autoincrement())
+  name        String             @unique
+  unit        String
+  stock       Int                @default(0)
+  reserved    Int                @default(0)
+  minStock    Int                @default(0)
+  version     Int                @default(0)
+  recipes     RecipeIngredient[]
+  orderUses   OrderIngredient[]
+}
+
+model Recipe {
+  id          Int                @id @default(autoincrement())
+  name        String             @unique
+  price       Int
+  imageUrl    String
+  isActive    Boolean            @default(true)
+  ingredients RecipeIngredient[]
+  orderItems  OrderItem[]
+}
+
+model RecipeIngredient {
+  recipeId     Int
+  ingredientId Int
+  quantity     Int
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@id([recipeId, ingredientId])
+}
+
+model OrderIngredient {
+  orderId      Int
+  ingredientId Int
+  quantity     Int
+  status       String     @default("RESERVED")
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@id([orderId, ingredientId])
+}
+>>>>>>> 0ec1a24 (feat(db): add ingredients recipes reservations and admin role)
