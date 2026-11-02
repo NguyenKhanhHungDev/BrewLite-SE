@@ -56,7 +56,7 @@ export class AuthService implements OnModuleDestroy {
   async me(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, loyaltyPoints: true },
+      select: { id: true, email: true, loyaltyPoints: true, role: true },
     });
     if (!user) throw new UnauthorizedException('User no longer exists');
     return user;

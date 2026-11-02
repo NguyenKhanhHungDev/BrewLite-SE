@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
-import { AdminClaimGuard, AdminGuard } from '../auth/admin.guard.js';
 import { LoyaltyModule } from '../loyalty/loyalty.module.js';
 import { ORDERS_STORE } from './orders.contract.js';
 import { ORDER_STATE_STORE } from './order-state.contract.js';
@@ -22,8 +21,6 @@ import { OrdersService } from './orders.service.js';
   providers: [
     OrdersService,
     OrdersExpirationService,
-    AdminGuard,
-    AdminClaimGuard,
     { provide: ORDERS_STORE, useClass: OrdersPrismaAdapter },
     OrdersHistoryService,
     { provide: ORDERS_HISTORY_STORE, useClass: OrdersHistoryPrismaAdapter },

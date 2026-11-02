@@ -1,78 +1,63 @@
 # Bàn giao Recipes/Products — Hưng
 
-Ngày kiểm tra: 01/11/2026. Nhánh: `feature/recipe-products-api`.
-Nguồn yêu cầu: `02_HUNG_LINUX_RECIPES_TICH_HOP.md` do Hưng cung cấp.
+Cập nhật 03/11/2026, nhánh `codex/fix-ingredient-recipe-migration`.
+Nguồn phân công: `02_HUNG_LINUX_RECIPES_TICH_HOP.md` do Hưng cung cấp.
+Trạng thái: đã triển khai và kiểm chứng API local với DB test riêng; chưa commit/push,
+chưa nghiệm thu giao diện hoặc toàn bộ luồng VNPAY.
 
-## Trạng thái
+## Code và hợp đồng
 
-**Chuẩn bị bằng interface/mock, chưa nghiệm thu tích hợp.** Schema hiện tại chưa có
-Ingredient, Recipe, RecipeIngredient, OrderIngredient, User.role và snapshot
-recipeId/recipeName. Chưa có AdminGuard. Orders vẫn tham chiếu Product.
-Không bật menu dùng Recipe.id khi Orders còn hiểu productId là Product.id.
+- RecipesPrismaAdapter dùng PrismaPg, một client được chia sẻ cho Recipes và Products,
+  đóng client khi module destroy. Create/update chạy trong Prisma transaction.
+- Cập nhật khóa dòng Recipe trước khi thay liên kết nguyên liệu; lỗi unique map 409,
+  thiếu ingredient/FK map 400, record bị xóa map 404. Không sửa snapshot Order.
+- RecipesModule được đăng ký vào AppModule; ProductsModule dùng repository được export.
+- `GET /recipes`, `GET /recipes/:id`, `POST /recipes`, `PATCH /recipes/:id` đều dùng
+  JwtAuthGuard + AdminGuard đọc role từ DB. Không token 401; Customer 403.
+- Response Recipe: `{id,name,price,imageUrl,isActive,ingredients:[{ingredientId,name,unit,quantity}]}`.
+- Create yêu cầu name, price nguyên dương, ảnh `/images/products/<slug>.jpg`, isActive,
+  ingredients không rỗng/trùng ID, quantity nguyên dương. PATCH bỏ qua trường không gửi,
+  từ chối null và trường lạ. Các validation nghiệp vụ ở RecipesService dùng chung.
+- Products đọc Recipe active; trả đúng `{id,name,price,imageUrl,stock}` cho frontend,
+  id = Recipe.id như Orders. Stock là số ly M không topping từ available nhỏ nhất.
+- Product cũ vẫn giữ để đọc lịch sử, không còn được dùng làm menu.
 
-Các tài liệu PROJECT_CONTEXT, PROJECT_ROADMAP, TEAM_ASSIGNMENTS, ARCHITECTURE
-được skill tham chiếu không có trong checkout này. Những tài liệu Malware Detection
-trong hướng dẫn IDE cũng không có và thuộc dự án khác. Không suy đoán nội dung các file thiếu.
-
-## File thêm
-
-- `apps/api/src/recipes/dto/create-recipe.dto.ts`: validate tên, giá nguyên dương
-  trong miền PostgreSQL Int, ảnh `/images/products/<slug>.jpg`, boolean,
-  nguyên liệu không rỗng và không trùng ID.
-- `apps/api/src/recipes/dto/update-recipe.dto.ts`: PATCH từng trường; từ chối null.
-- `apps/api/src/recipes/recipes.contract.ts`: interface repository/transaction,
-  dữ liệu công thức kèm tên, đơn vị, tồn và reserved.
-- `apps/api/src/recipes/recipes.service.ts`: đọc, tạo, sửa; kiểm tra tên trùng,
-  tham chiếu nguyên liệu; yêu cầu mutation qua transaction của repository.
-- `apps/api/src/products/recipe-menu.service.ts`: menu chỉ lấy công thức active,
-  giữ shape frontend, tính min(floor(max(0, stock-reserved)/quantity)).
-  Từ chối công thức rỗng, định lượng sai, tồn/reserved âm và nguyên liệu trùng.
-- Hai file `*.spec.ts` tương ứng: 39 test bổ sung dùng mock, không truy cập DB.
-
-Không thay `.env`, Compose, schema, migration, seed, Orders, Payment hay module đang chạy.
-Không commit/push/merge hoặc liên hệ thành viên nhóm.
-
-## Phần cần tích hợp sau
-
-1. Khoa cung cấp schema/migration/seed 10 món đúng bảng yêu cầu và cơ chế role.
-   Không hardcode Ingredient.id; đối chiếu tên và ảnh .jpg. Không xóa Product cũ.
-2. Viết Prisma repository dùng client chung, map quan hệ thực tế sang contract.
-   `transaction` phải dùng Prisma transaction thật; create/update liên kết phải
-   nguyên tử. Map unique conflict kể cả race thành 409, thiếu tham chiếu thành
-   400/404. Không ghi snapshot lịch sử đơn hàng.
-3. Thêm controller/module Recipes có JwtAuthGuard + AdminGuard và validation;
-   chỉ đăng ký vào AppModule khi dependencies đã sẵn sàng. Không mở route admin
-   tạm thời thiếu guard. Kiểm tra 401/403 và token Admin thực tế.
-4. Phát chuyển Orders sang Recipe, giữ request productId và transaction nguyên liệu.
-   Khi đó mới nối ProductsService với RecipeMenuService. Huy bổ sung rewrites.
-5. Kiểm thử DB rollback/concurrency, PATCH giữ lịch sử, seed thực trả đúng 10 món,
-   VNPAY IPN và luồng demo. Mock hiện tại không chứng minh các tiêu chí này.
-
-## Kiểm chứng local
+## Minh chứng
 
 Trong `apps/api`:
 
 ```bash
-npx prisma generate --config ./prisma7.config.ts
-npm test
 npm run build
 npm run lint
+RUN_DB_INTEGRATION=0 npm test -- --maxWorkers=2
 ```
 
-Baseline trước sửa: 57 passed / 10 skipped; build lỗi 31 lỗi TypeScript do client
-generated cũ thiếu Order/Payment. Generate lại client từ schema hiện tại không
-đụng DB và khắc phục lỗi build. Sau thêm: 96 passed / 10 skipped; build đạt.
-10 test integration bị skip không được tính là đã kiểm thử DB.
+Build đạt; lint đạt với 3 cảnh báo cũ ngoài phần Recipes/Products.
+Unit suite: 108 passed / 14 skipped. Các test Product cũ phụ thuộc truy vấn Product
+đã được thay bằng test hành vi Recipe/available/ẩn món; test RecipeMenu và RecipesService
+vẫn được giữ. Các bài skip không được tính là đã kiểm chứng DB.
 
-API lint đạt, còn 2 cảnh báo no-base-to-string trong `payments/vnpay.service.ts`
-dòng 112 và 114, ngoài phần thay đổi. Code mới không có cảnh báo lint.
-Web: `npm run lint` đạt. `npm run build` thất bại: lần đầu không tải được
-Google Fonts (DM Sans/Fraunces); lần chạy lại với yêu cầu quyền mở rộng gặp
-Turbopack panic khi xử lý CSS do binding to a port: Operation not permitted.
-Chưa có bằng chứng build Web thành công; không sửa frontend để né lỗi môi trường.
-Root: `docker compose config --quiet` đạt; chưa khởi động Compose hay chạy migration/seed.
-`curl --max-time 5 http://localhost:3001/products` và cổng 3000 đều không kết nối
-được tại thời điểm kiểm tra; chưa có bằng chứng menu chạy hoặc ảnh/clip demo.
+Bài kiểm chứng DB/HTTP: `scripts/verify-foundation.mjs`, hướng dẫn chuẩn bị DB riêng tại
+`docs/foundation-verification.md`. Phiên chạy thành công dùng PostgreSQL 18.6 UTF8,
+DB tạm `brewlite_auth_check_5`, API tạm cổng 55440. Ba nhóm PASS:
 
-Các ảnh 10 món .jpg theo tài liệu đã tồn tại trong `apps/web/public/images/products/`.
-Chưa xác minh dữ liệu DB hoặc cập nhật main từ remote; không tự merge nhánh người khác.
+1. Migration, seed hai lần, giữ tồn/reserved và dữ liệu lịch sử, seed rollback.
+2. Recipes create/list/PATCH, quyền truy cập, menu 10 Recipe, không lấy Product legacy;
+   đủ/giảm available; hai create cùng tên nhận 201/409; lỗi FK trong transaction update
+   rollback được liên kết cũ; snapshot OrderItem/OrderIngredient giữ nguyên sau PATCH/ẩn món.
+3. Auth/me, 401/403/200, quyền xem đơn theo chủ sở hữu và role DB có hiệu lực ngay.
+
+Ví dụ kiểm chứng số học: recipe thử cần 20g, kho 1500g và reserved 40g → menu 73 ly.
+Đặt 2 ly giữ thêm 40g, đổi định lượng thành 30g → menu 47 ly; đơn cũ vẫn ghi 40g.
+API test và PostgreSQL tạm đã dừng; không áp dụng migration/seed vào DB demo.
+
+## Phần còn lại theo chủ module
+
+- Huy: Ingredients API, Admin UI, rewrite `/ingredients/:path*`, `/recipes/:path*`,
+  `/api/admin/orders`; kết nối checkout VNPAY và `/payment/result`.
+- Thắng + Phát: nối Payment/IPN với consume/release trong cùng transaction; kiểm thử
+  idempotency, hết hạn, thất bại và thanh toán muộn. Chưa xác nhận luồng này hoàn tất.
+- Hưng: kiểm thử giao diện và tổng duyệt end-to-end sau các phần trên; cập nhật README
+  và minh chứng demo. Chưa có bằng chứng frontend build/browser demo cho phiên này.
+- PostgreSQL test hiện dùng bản 18.6; cần xác nhận lại trên PostgreSQL 17 của Compose
+  trước nghiệm thu cuối.

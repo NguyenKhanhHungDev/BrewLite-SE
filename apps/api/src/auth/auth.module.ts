@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
+import { AdminClaimGuard, AdminGuard } from './admin.guard.js';
 
 const secret = process.env.JWT_SECRET;
 if (!secret) throw new Error('JWT_SECRET is missing');
@@ -15,7 +16,7 @@ if (!secret) throw new Error('JWT_SECRET is missing');
     signOptions: { expiresIn: '1h' },
   })],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard],
-  exports: [JwtModule, JwtAuthGuard],
+  providers: [AuthService, JwtAuthGuard, AdminClaimGuard, AdminGuard],
+  exports: [AuthService, JwtModule, JwtAuthGuard, AdminClaimGuard, AdminGuard],
 })
 export class AuthModule {}
