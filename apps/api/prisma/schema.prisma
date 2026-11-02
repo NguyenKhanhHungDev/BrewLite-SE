@@ -13,7 +13,7 @@ model Product {
   price      Int
   imageUrl   String
   stock      Int
-  version Int @default(0)
+  version    Int         @default(0)
   orderItems OrderItem[]
 }
 
@@ -39,6 +39,7 @@ model Order {
   createdAt       DateTime    @default(now())
   items           OrderItem[]
   payments        Payment[]
+
   @@unique([userId, idempotencyKey])
 }
 
@@ -54,6 +55,7 @@ model OrderItem {
   unitPrice Int
   subtotal  Int
 }
+
 model Payment {
   id                    Int       @id @default(autoincrement())
   orderId               Int
