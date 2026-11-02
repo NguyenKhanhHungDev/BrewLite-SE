@@ -15,7 +15,13 @@ import {
   type Size,
   type Topping,
   type StoredOrderResult,
+  type IngredientSnapshot,
+  type RecipeSnapshot,
 } from './orders.contract.js';
+import {
+  assertIngredientAvailability,
+  calculateIngredientNeeds,
+} from './orders.ingredients.js';
 import { isOrderStatus } from './order-state.js';
 import { calculateUnitPrice } from './orders.pricing.js';
 import { applyPromotion } from '../promotions/promotions.service.js';
@@ -165,28 +171,50 @@ export class OrdersService {
       if (existing) return replayResult(existing, idempotencyHash);
     }
 
+    const recipeById = new Map<number, RecipeSnapshot>();
+    for (const item of input.items) {
+      if (!recipeById.has(item.productId)) {
+        const recipe = await this.store.getRecipeById(item.productId);
+        if (!recipe) {
+          throw new NotFoundException(`Không tìm thấy món ${item.productId}`);
+        }
+        recipeById.set(item.productId, recipe);
+      }
+    }
+
+    const toppingIngredients = await this.store.getToppingIngredients();
+    const needInputs = input.items.map((item) => ({
+      recipe: recipeById.get(item.productId)!,
+      quantity: item.quantity,
+      size: item.size,
+      toppings: item.toppings,
+    }));
+    const ingredientNeeds = calculateIngredientNeeds(needInputs, toppingIngredients);
+
+    const ingredientById = new Map<number, IngredientSnapshot>();
+    for (const recipe of recipeById.values()) {
+      for (const line of recipe.ingredients) {
+        ingredientById.set(line.ingredientId, line.ingredient);
+      }
+    }
+    if (toppingIngredients.pearl) {
+      ingredientById.set(toppingIngredients.pearl.id, toppingIngredients.pearl);
+    }
+    if (toppingIngredients.cream) {
+      ingredientById.set(toppingIngredients.cream.id, toppingIngredients.cream);
+    }
+    assertIngredientAvailability(ingredientNeeds, ingredientById);
+
     const lines: OrderLine[] = [];
     let subtotalTotal = 0;
     for (const item of input.items) {
-      const product = await this.store.getProductById(item.productId);
-      if (!product)
-        throw new NotFoundException(
-          `Không tìm thấy sản phẩm ${item.productId}`,
-        );
-      if (!Number.isSafeInteger(product.price) || product.price < 0) {
-        throw new BadRequestException('Giá sản phẩm không hợp lệ');
-      }
-      if (!Number.isSafeInteger(product.stock) || product.stock < 0) {
-        throw new BadRequestException('Tồn kho sản phẩm không hợp lệ');
-      }
-      if (item.quantity > product.stock) {
-        throw new BadRequestException(
-          `Không đủ tồn kho cho sản phẩm ${item.productId}`,
-        );
+      const recipe = recipeById.get(item.productId)!;
+      if (!Number.isSafeInteger(recipe.price) || recipe.price < 0) {
+        throw new BadRequestException('Giá món không hợp lệ');
       }
 
       const unitPrice = calculateUnitPrice(
-        product.price,
+        recipe.price,
         item.size,
         item.toppings,
       );
@@ -206,6 +234,8 @@ export class OrdersService {
       }
       lines.push({
         productId: item.productId,
+        recipeName: recipe.name,
+        basePrice: recipe.price,
         quantity: item.quantity,
         size: item.size,
         toppings: item.toppings,
@@ -247,5 +277,40 @@ export class OrdersService {
       }
       throw error;
     }
+  }
+
+  async findOne(orderId: number, userId: number, isAdmin = false) {
+    if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+      throw new BadRequestException('orderId phải là số nguyên dương');
+    }
+    const order = isAdmin
+      ? await this.store.findAdminOrder(orderId)
+      : await this.store.findOrderForUser(orderId, userId);
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    return order;
+  }
+
+  async findAdminOrder(orderId: number) {
+    if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+      throw new BadRequestException('orderId phải là số nguyên dương');
+    }
+    const order = await this.store.findAdminOrder(orderId);
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    return order;
+  }
+
+  async listAdminOrders(rawPage?: unknown, rawLimit?: unknown) {
+    const page = rawPage === undefined ? 1 : Number(rawPage);
+    const limit = rawLimit === undefined ? 20 : Number(rawLimit);
+    if (!Number.isSafeInteger(page) || page < 1) {
+      throw new BadRequestException('page phải là số nguyên dương');
+    }
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
+      throw new BadRequestException('limit phải nằm trong khoảng 1 đến 50');
+    }
+    if (page > Math.floor(Number.MAX_SAFE_INTEGER / limit)) {
+      throw new BadRequestException('page vượt giới hạn');
+    }
+    return this.store.listAdminOrders(page, limit);
   }
 }

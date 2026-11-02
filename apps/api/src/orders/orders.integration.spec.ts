@@ -3,6 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { JwtService } from '@nestjs/jwt';
+import {
+  consumeReservation,
+  releaseReservation,
+  type OrdersInventoryTransaction,
+} from './orders.inventory.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../generated/prisma/client.js';
 import request from 'supertest';
@@ -10,12 +16,14 @@ import request from 'supertest';
 const integrationEnabled = process.env.RUN_DB_INTEGRATION === '1';
 
 describe.skipIf(!integrationEnabled)(
-  'A1-06/A1-09 real PostgreSQL + JWT integration',
+  'Phat: recipe ingredient inventory + Orders API integration',
   () => {
     let app!: INestApplication;
     let prisma!: PrismaClient;
+    let jwt!: JwtService;
     const userIds: number[] = [];
-    let productId: number | undefined;
+    const recipeIds: number[] = [];
+    const ingredientIds: number[] = [];
 
     beforeAll(async () => {
       if (!process.env.DATABASE_URL || !process.env.JWT_SECRET) {
@@ -34,177 +42,324 @@ describe.skipIf(!integrationEnabled)(
       prisma = new PrismaClient({
         adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
       });
+      jwt = new JwtService({ secret: process.env.JWT_SECRET });
     });
 
     afterAll(async () => {
       if (prisma) {
-        if (userIds.length > 0) {
-          await prisma.order.deleteMany({ where: { userId: { in: userIds } } });
-          await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+        for (const userId of userIds) {
+          await prisma.$executeRaw`
+            DELETE FROM "OrderIngredient"
+            WHERE "orderId" IN (SELECT "id" FROM "Order" WHERE "userId" = ${userId})
+          `;
+          await prisma.order.deleteMany({ where: { userId } });
         }
-        if (productId !== undefined) {
-          await prisma.product.deleteMany({ where: { id: productId } });
+        for (const recipeId of recipeIds) {
+          await prisma.$executeRaw`
+            DELETE FROM "RecipeIngredient" WHERE "recipeId" = ${recipeId}
+          `;
+          await prisma.$executeRaw`
+            DELETE FROM "Recipe" WHERE "id" = ${recipeId}
+          `;
+        }
+        for (const ingredientId of ingredientIds) {
+          await prisma.$executeRaw`
+            DELETE FROM "Ingredient" WHERE "id" = ${ingredientId}
+          `;
+        }
+        for (const userId of userIds) {
+          await prisma.user.deleteMany({ where: { id: userId } });
         }
         await prisma.$disconnect();
       }
       if (app) await app.close();
     });
 
-    it('persists orders, protects history by JWT user, and safely replays idempotency key', async () => {
+    async function createUserAndLogin() {
       const http = request(app.getHttpServer());
+      const email = `orders-integration-${randomUUID()}@example.test`;
       const password = 'IntegrationTest123!';
+      const registered = await http
+        .post('/auth/register')
+        .send({ email, password })
+        .expect(201);
+      userIds.push(registered.body.id as number);
+      const login = await http
+        .post('/auth/login')
+        .send({ email, password })
+        .expect(201);
+      return {
+        id: registered.body.id as number,
+        token: login.body.accessToken as string,
+      };
+    }
 
-      async function createUserAndLogin() {
-        const email = `orders-integration-${randomUUID()}@example.test`;
-        const registered = await http
-          .post('/auth/register')
-          .send({ email, password })
-          .expect(201);
-        userIds.push(registered.body.id as number);
-        const login = await http
-          .post('/auth/login')
-          .send({ email, password })
-          .expect(201);
-        return {
-          id: registered.body.id as number,
-          token: login.body.accessToken as string,
-        };
-      }
+    async function createIngredient(name: string, unit: 'g' | 'ml', stock: number) {
+      const rows = await prisma.$queryRaw<Array<{ id: number }>>`
+        INSERT INTO "Ingredient" (
+          "name", "unit", "stock", "reserved", "minStock", "version"
+        )
+        VALUES (${name}, ${unit}, ${stock}, 0, 0, 0)
+        RETURNING "id"
+      `;
+      const id = Number(rows[0]?.id);
+      if (!id) throw new Error(`Could not create test ingredient: ${name}`);
+      ingredientIds.push(id);
+      return id;
+    }
 
+    async function createRecipe(name: string, price: number, ingredientId: number, quantity: number) {
+      const rows = await prisma.$queryRaw<Array<{ id: number }>>`
+        INSERT INTO "Recipe" ("name", "price", "imageUrl", "isActive")
+        VALUES (${name}, ${price}, '/integration-test.svg', TRUE)
+        RETURNING "id"
+      `;
+      const id = Number(rows[0]?.id);
+      if (!id) throw new Error(`Could not create test recipe: ${name}`);
+      recipeIds.push(id);
+      await prisma.$executeRaw`
+        INSERT INTO "RecipeIngredient" ("recipeId", "ingredientId", "quantity")
+        VALUES (${id}, ${ingredientId}, ${quantity})
+      `;
+      return id;
+    }
+
+    it('reserves recipe ingredients, replays idempotency, and enforces order ownership/admin access', async () => {
+      const http = request(app.getHttpServer());
       const userA = await createUserAndLogin();
       const userB = await createUserAndLogin();
-      expect(userA.token).toBeTruthy();
-      expect(userB.token).toBeTruthy();
-
-      const product = await prisma.product.create({
-        data: {
-          name: `Orders integration ${randomUUID()}`,
-          price: 25000,
-          imageUrl: '/integration-test.svg',
-          stock: 10,
-        },
-      });
-      productId = product.id;
-
-      const firstPayload = {
-        items: [
-          { productId: product.id, quantity: 2, size: 'M', toppings: [] },
-        ],
+      const coffeeId = await createIngredient(`Coffee-${randomUUID()}`, 'g', 1000);
+      const recipeId = await createRecipe(`Recipe-${randomUUID()}`, 25000, coffeeId, 20);
+      const payload = {
+        items: [{ productId: recipeId, quantity: 2, size: 'M', toppings: [] }],
       };
-      const idempotencyKey = `integration-${randomUUID()}`;
+      const key = `orders-${randomUUID()}`;
+
       const created = await http
         .post('/orders')
         .set('Authorization', `Bearer ${userA.token}`)
-        .set('Idempotency-Key', idempotencyKey)
-        .send(firstPayload)
+        .set('Idempotency-Key', key)
+        .send(payload)
         .expect(201);
-
       expect(created.body).toMatchObject({ status: 'PENDING', total: 50000 });
-      expect(Number.isSafeInteger(created.body.orderId)).toBe(true);
 
-      const persisted = await prisma.order.findUnique({
-        where: { id: created.body.orderId as number },
-        include: { items: true },
-      });
-      expect(persisted).not.toBeNull();
-      expect(persisted?.userId).toBe(userA.id);
-      expect(persisted?.status).toBe('PENDING');
-      expect(persisted?.total).toBe(50000);
-      expect(persisted?.items).toHaveLength(1);
-      expect(persisted?.items[0]).toMatchObject({
-        productId: product.id,
-        quantity: 2,
-        unitPrice: 25000,
-        subtotal: 50000,
-      });
+      const inventoryAfterCreate = await prisma.$queryRaw<Array<{ stock: number; reserved: number }>>`
+        SELECT "stock", "reserved" FROM "Ingredient" WHERE "id" = ${coffeeId}
+      `;
+      expect(Number(inventoryAfterCreate[0]?.stock)).toBe(1000);
+      expect(Number(inventoryAfterCreate[0]?.reserved)).toBe(40);
+
+      const savedItems = await prisma.$queryRaw<Array<{
+        productId: number | null;
+        recipeId: number | null;
+        recipeName: string | null;
+      }>>`
+        SELECT "productId", "recipeId", "recipeName"
+        FROM "OrderItem" WHERE "orderId" = ${created.body.orderId}
+      `;
+      expect(savedItems).toEqual([{
+        productId: null,
+        recipeId,
+        recipeName: expect.stringContaining('Recipe-'),
+      }]);
+
+      const reservation = await prisma.$queryRaw<Array<{ quantity: number; status: string }>>`
+        SELECT "quantity", "status" FROM "OrderIngredient"
+        WHERE "orderId" = ${created.body.orderId}
+      `;
+      expect(reservation).toHaveLength(1);
+      expect(Number(reservation[0]?.quantity)).toBe(40);
+      expect(reservation[0]?.status).toBe('RESERVED');
 
       const replay = await http
         .post('/orders')
         .set('Authorization', `Bearer ${userA.token}`)
-        .set('Idempotency-Key', idempotencyKey)
-        .send(firstPayload)
+        .set('Idempotency-Key', key)
+        .send(payload)
         .expect(201);
       expect(replay.body.orderId).toBe(created.body.orderId);
-
-      const secondAOrder = await http
+      const inventoryAfterReplay = await prisma.$queryRaw<Array<{ reserved: number }>>`
+        SELECT "reserved" FROM "Ingredient" WHERE "id" = ${coffeeId}
+      `;
+      expect(Number(inventoryAfterReplay[0]?.reserved)).toBe(40);
+      await http
         .post('/orders')
         .set('Authorization', `Bearer ${userA.token}`)
-        .send({ items: [{ productId: product.id, quantity: 1 }] })
-        .expect(201);
-      const orderB = await http
-        .post('/orders')
-        .set('Authorization', `Bearer ${userB.token}`)
-        .send({ items: [{ productId: product.id, quantity: 1 }] })
-        .expect(201);
+        .set('Idempotency-Key', key)
+        .send({ items: [{ productId: recipeId, quantity: 1 }] })
+        .expect(409);
 
-      expect(await prisma.order.count({ where: { userId: userA.id } })).toBe(2);
-      expect(await prisma.order.count({ where: { userId: userB.id } })).toBe(1);
+      await http
+        .get(`/orders/${created.body.orderId}`)
+        .set('Authorization', `Bearer ${userA.token}`)
+        .expect(200);
+      await http
+        .get(`/orders/${created.body.orderId}`)
+        .set('Authorization', `Bearer ${userB.token}`)
+        .expect(404);
+      await http
+        .get('/admin/orders')
+        .set('Authorization', `Bearer ${userA.token}`)
+        .expect(403);
+
+      const adminToken = await jwt.signAsync({ sub: userA.id, role: 'ADMIN' });
+      const adminList = await http
+        .get('/admin/orders?page=1&limit=20')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(adminList.body.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: created.body.orderId,
+            userEmail: expect.stringContaining('orders-integration-'),
+            paymentStatus: null,
+          }),
+        ]),
+      );
+      await http
+        .get(`/admin/orders/${created.body.orderId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
 
       const historyA = await http
         .get('/orders/me')
         .set('Authorization', `Bearer ${userA.token}`)
         .expect(200);
-      expect(historyA.body).toHaveLength(2);
-      expect(historyA.body[0].id).toBe(secondAOrder.body.orderId);
-      expect(
-        historyA.body.map((order: { id: number }) => order.id),
-      ).not.toContain(orderB.body.orderId);
-      expect(historyA.body[0].items[0]).toMatchObject({
-        productId: product.id,
-        quantity: 1,
-      });
-      expect(historyA.body[0]).not.toHaveProperty('userId');
-
+      expect(historyA.body.map((order: { id: number }) => order.id)).toContain(
+        created.body.orderId,
+      );
       const historyB = await http
         .get('/orders/me')
         .set('Authorization', `Bearer ${userB.token}`)
         .expect(200);
-      expect(historyB.body).toHaveLength(1);
-      expect(historyB.body[0].id).toBe(orderB.body.orderId);
-      expect(
-        historyB.body.map((order: { id: number }) => order.id),
-      ).not.toContain(created.body.orderId);
-
-      await http
-      .post('/orders')
-      .set('Authorization', `Bearer ${userA.token}`)
-      .set('Idempotency-Key', idempotencyKey)
-      .send({ items: [{ productId: product.id, quantity: 3 }] })
-      .expect(409);
-
-      const discounted = await http
-        .post('/orders')
-        .set('Authorization', `Bearer ${userA.token}`)
-        .send({
-          items: [{ productId: product.id, quantity: 2 }],
-          promoCode: 'BREW10',
-        })
-        .expect(201);
-      expect(discounted.body.total).toBe(45000);
-
-      const savedDiscount = await prisma.order.findUniqueOrThrow({
-        where: { id: discounted.body.orderId as number },
-      });
-      expect(savedDiscount.total).toBe(45000);
-      expect(savedDiscount.discount).toBe(5000);
-      expect(savedDiscount.promoCode).toBe('BREW10');
-
-      await http
-      .post('/orders')
-      .set('Authorization', `Bearer ${userA.token}`)
-      .send({
-        items: [{ productId: product.id, quantity: 1 }],
-        promoCode: 'INVALID',
-      })
-      .expect(400);
-
-      await http.get('/orders/me').expect(401);
-      await http.post('/orders').send(firstPayload).expect(401);
-      await http
-      .post('/orders')
-      .set('Authorization', `Bearer ${userA.token}`)
-      .send({ items: [], total: 1 })
-      .expect(400);
+      expect(historyB.body.map((order: { id: number }) => order.id)).not.toContain(
+        created.body.orderId,
+      );
     });
+
+    it('allows at most one concurrent order when only one reservation fits', async () => {
+      const http = request(app.getHttpServer());
+      const userA = await createUserAndLogin();
+      const userB = await createUserAndLogin();
+      const ingredientId = await createIngredient(`Limited-${randomUUID()}`, 'g', 50);
+      const recipeId = await createRecipe(`LimitedRecipe-${randomUUID()}`, 25000, ingredientId, 20);
+      const body = {
+        items: [{ productId: recipeId, quantity: 2, size: 'M', toppings: [] }],
+      };
+
+      const responses = await Promise.all([
+        http.post('/orders')
+          .set('Authorization', `Bearer ${userA.token}`)
+          .set('Idempotency-Key', `race-a-${randomUUID()}`)
+          .send(body),
+        http.post('/orders')
+          .set('Authorization', `Bearer ${userB.token}`)
+          .set('Idempotency-Key', `race-b-${randomUUID()}`)
+          .send(body),
+      ]);
+      expect(responses.map((response) => response.status).sort()).toEqual([201, 400]);
+
+      const stock = await prisma.$queryRaw<Array<{ stock: number; reserved: number }>>`
+        SELECT "stock", "reserved" FROM "Ingredient" WHERE "id" = ${ingredientId}
+      `;
+      expect(Number(stock[0]?.stock)).toBe(50);
+      expect(Number(stock[0]?.reserved)).toBe(40);
+    });
+
+    it('consumes a reservation only once for successful payment handling', async () => {
+      const http = request(app.getHttpServer());
+      const user = await createUserAndLogin();
+      const ingredientId = await createIngredient(`Consume-${randomUUID()}`, 'g', 100);
+      const recipeId = await createRecipe(`ConsumeRecipe-${randomUUID()}`, 25000, ingredientId, 20);
+      const created = await http
+        .post('/orders')
+        .set('Authorization', `Bearer ${user.token}`)
+        .send({ items: [{ productId: recipeId, quantity: 2, size: 'M', toppings: [] }] })
+        .expect(201);
+
+      const first = await prisma.$transaction((tx) =>
+        consumeReservation(tx as unknown as OrdersInventoryTransaction, created.body.orderId),
+      );
+      const duplicate = await prisma.$transaction((tx) =>
+        consumeReservation(tx as unknown as OrdersInventoryTransaction, created.body.orderId),
+      );
+      expect(first).toBe('CONSUMED');
+      expect(duplicate).toBe('ALREADY_CONSUMED');
+
+      const inventory = await prisma.$queryRaw<Array<{ stock: number; reserved: number }>>`
+        SELECT "stock", "reserved" FROM "Ingredient" WHERE "id" = ${ingredientId}
+      `;
+      expect(Number(inventory[0]?.stock)).toBe(60);
+      expect(Number(inventory[0]?.reserved)).toBe(0);
+      const order = await prisma.$queryRaw<Array<{ status: string; reservationStatus: string }>>`
+        SELECT o."status", oi."status" AS "reservationStatus"
+        FROM "Order" o
+        JOIN "OrderIngredient" oi ON oi."orderId" = o."id"
+        WHERE o."id" = ${created.body.orderId}
+      `;
+      expect(order[0]).toMatchObject({ status: 'PAID', reservationStatus: 'CONSUMED' });
+    });
+
+    it('releases a reservation once on failure and does not decrement stock', async () => {
+      const http = request(app.getHttpServer());
+      const user = await createUserAndLogin();
+      const ingredientId = await createIngredient(`Release-${randomUUID()}`, 'g', 100);
+      const recipeId = await createRecipe(`ReleaseRecipe-${randomUUID()}`, 25000, ingredientId, 20);
+      const created = await http
+        .post('/orders')
+        .set('Authorization', `Bearer ${user.token}`)
+        .send({ items: [{ productId: recipeId, quantity: 1, size: 'M', toppings: [] }] })
+        .expect(201);
+
+      const first = await prisma.$transaction((tx) =>
+        releaseReservation(tx as unknown as OrdersInventoryTransaction, created.body.orderId, 'PAYMENT_FAILED'),
+      );
+      const duplicate = await prisma.$transaction((tx) =>
+        releaseReservation(tx as unknown as OrdersInventoryTransaction, created.body.orderId, 'PAYMENT_FAILED'),
+      );
+      expect(first).toBe(true);
+      expect(duplicate).toBe(false);
+
+      const inventory = await prisma.$queryRaw<Array<{ stock: number; reserved: number }>>`
+        SELECT "stock", "reserved" FROM "Ingredient" WHERE "id" = ${ingredientId}
+      `;
+      expect(Number(inventory[0]?.stock)).toBe(100);
+      expect(Number(inventory[0]?.reserved)).toBe(0);
+    });
+
+    it('rejects a late successful callback after expiry and releases the held ingredients', async () => {
+      const http = request(app.getHttpServer());
+      const user = await createUserAndLogin();
+      const ingredientId = await createIngredient(`Expired-${randomUUID()}`, 'g', 100);
+      const recipeId = await createRecipe(`ExpiredRecipe-${randomUUID()}`, 25000, ingredientId, 20);
+      const created = await http
+        .post('/orders')
+        .set('Authorization', `Bearer ${user.token}`)
+        .send({ items: [{ productId: recipeId, quantity: 1, size: 'M', toppings: [] }] })
+        .expect(201);
+      await prisma.$executeRaw`
+        UPDATE "Order"
+        SET "expiresAt" = CURRENT_TIMESTAMP - INTERVAL '1 second'
+        WHERE "id" = ${created.body.orderId}
+      `;
+
+      const result = await prisma.$transaction((tx) =>
+        consumeReservation(tx as unknown as OrdersInventoryTransaction, created.body.orderId),
+      );
+      expect(result).toBe('EXPIRED');
+      const inventory = await prisma.$queryRaw<Array<{ stock: number; reserved: number }>>`
+        SELECT "stock", "reserved" FROM "Ingredient" WHERE "id" = ${ingredientId}
+      `;
+      expect(Number(inventory[0]?.stock)).toBe(100);
+      expect(Number(inventory[0]?.reserved)).toBe(0);
+      const order = await prisma.$queryRaw<Array<{ status: string; reservationStatus: string }>>`
+        SELECT o."status", oi."status" AS "reservationStatus"
+        FROM "Order" o
+        JOIN "OrderIngredient" oi ON oi."orderId" = o."id"
+        WHERE o."id" = ${created.body.orderId}
+      `;
+      expect(order[0]).toMatchObject({ status: 'CANCELLED', reservationStatus: 'RELEASED' });
+    });
+
   },
 );

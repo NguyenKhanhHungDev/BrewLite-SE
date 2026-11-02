@@ -11,7 +11,7 @@ export type OrderStatus =
 
 const allowedTransitions: Record<OrderStatus, readonly OrderStatus[]> = {
   PENDING: ['PAID', 'PAYMENT_FAILED', 'CANCELLED'],
-  PAYMENT_FAILED: ['PENDING', 'CANCELLED'],
+  PAYMENT_FAILED: ['CANCELLED'],
   PAID: ['PREPARING'],
   PREPARING: ['READY'],
   READY: ['COMPLETED'],

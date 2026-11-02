@@ -4,6 +4,11 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 import type { OrderStateStore } from './order-state.contract.js';
 import type { OrderStatus } from './order-state.js';
+import {
+  consumeReservation,
+  releaseReservation,
+  type OrdersInventoryTransaction,
+} from './orders.inventory.js';
 
 @Injectable()
 export class OrderStatePrismaAdapter
@@ -32,11 +37,26 @@ export class OrderStatePrismaAdapter
     currentStatus: OrderStatus,
     nextStatus: OrderStatus,
   ): Promise<boolean> {
-    const result = await this.prisma.order.updateMany({
-      where: { id: orderId, status: currentStatus },
-      data: { status: nextStatus },
+    return this.prisma.$transaction(async (tx) => {
+      if (currentStatus === 'PENDING' && nextStatus === 'PAID') {
+        const result = await consumeReservation(tx as unknown as OrdersInventoryTransaction, orderId);
+        return result !== 'EXPIRED';
+      }
+      if (
+        currentStatus === 'PENDING' &&
+        (nextStatus === 'PAYMENT_FAILED' || nextStatus === 'CANCELLED')
+      ) {
+        return releaseReservation(tx as unknown as OrdersInventoryTransaction, orderId, nextStatus);
+      }
+      if (currentStatus === 'PAYMENT_FAILED' && nextStatus === 'CANCELLED') {
+        return releaseReservation(tx as unknown as OrdersInventoryTransaction, orderId, 'CANCELLED');
+      }
+      const result = await tx.order.updateMany({
+        where: { id: orderId, status: currentStatus },
+        data: { status: nextStatus },
+      });
+      return result.count === 1;
     });
-    return result.count === 1;
   }
 
   async onModuleDestroy() {

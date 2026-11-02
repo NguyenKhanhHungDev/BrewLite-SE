@@ -4,7 +4,9 @@ export interface OrderHistoryRecord {
   total: number;
   createdAt: Date;
   items: Array<{
-    productId: number;
+    recipeId: number | null;
+    recipeName: string;
+    productId: number | null;
     quantity: number;
     size: string;
     toppings: string[];
