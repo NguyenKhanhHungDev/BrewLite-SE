@@ -4,10 +4,18 @@ import type {
   OrderDraft,
   OrdersStore,
   StoredOrderResult,
+  RecipeSnapshot,
 } from './orders.contract.js';
 
 function makeTestService() {
   const records = new Map<string, StoredOrderResult>();
+  const recipe: RecipeSnapshot = {
+    id: 1, name: 'Ca phe sua', price: 25000, isActive: true,
+    ingredients: [{
+      ingredientId: 10, quantity: 20,
+      ingredient: { id: 10, name: 'Ca phe', unit: 'g', stock: 1000, reserved: 0, version: 0 },
+    }],
+  };
   const saveOrder = vi.fn(async (draft: OrderDraft) => {
     const result: StoredOrderResult = {
       id: 42,
@@ -21,14 +29,20 @@ function makeTestService() {
     return result;
   });
   const store: OrdersStore = {
-    getProductById: vi.fn(async (id: number) =>
-      id === 1 ? { id: 1, price: 25000, stock: 20 } : null,
-    ),
+    getRecipeById: vi.fn(async (id: number) => id === 1 ? recipe : null),
+    getToppingIngredients: vi.fn(async () => ({
+      pearl: { id: 30, name: 'Trân châu', unit: 'g', stock: 1000, reserved: 0, version: 0 },
+      cream: { id: 31, name: 'Kem sữa', unit: 'ml', stock: 1000, reserved: 0, version: 0 },
+    })),
     findOrderByIdempotencyKey: vi.fn(
       async (userId: number, key: string) =>
         records.get(`${userId}:${key}`) ?? null,
     ),
     saveOrder,
+    findOrderForUser: vi.fn(async () => null),
+    findAdminOrder: vi.fn(async () => null),
+    listAdminOrders: vi.fn(async () => ({ data: [], page: 1, limit: 20, total: 0, totalPages: 0 })),
+    expirePendingOrders: vi.fn(async () => 0),
   };
   return { service: new OrdersService(store), store, saveOrder };
 }
@@ -87,6 +101,8 @@ describe('A1-06 OrdersService', () => {
       expect.objectContaining({
         items: [
           expect.objectContaining({
+            recipeName: 'Ca phe sua',
+            basePrice: 25000,
             unitPrice: 35000,
             size: 'L',
             toppings: ['PEARL'],
@@ -96,7 +112,7 @@ describe('A1-06 OrdersService', () => {
     );
   });
 
-  it('rejects invalid topping and quantity over stock', async () => {
+  it('rejects invalid topping and insufficient ingredient stock', async () => {
     const { service } = makeTestService();
     await expect(
       service.create(7, {
@@ -104,7 +120,7 @@ describe('A1-06 OrdersService', () => {
       }),
     ).rejects.toThrow();
     await expect(
-      service.create(7, { items: [{ productId: 1, quantity: 21 }] }),
+      service.create(7, { items: [{ productId: 1, quantity: 51 }] }),
     ).rejects.toThrow();
   });
 

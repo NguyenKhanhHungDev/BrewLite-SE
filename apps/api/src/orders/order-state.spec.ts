@@ -26,6 +26,7 @@ describe('A1-10 Order State Machine', () => {
     ['CANCELLED', 'PAID'],
     ['PAID', 'CANCELLED'],
     ['READY', 'PREPARING'],
+    ['PAYMENT_FAILED', 'PENDING'],
   ] as const)('rejects %s -> %s', (from, to) => {
     expect(() => assertTransition(from, to)).toThrow();
   });

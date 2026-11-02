@@ -7,6 +7,22 @@ import type {
   OrdersHistoryStore,
 } from './orders-history.contract.js';
 
+interface HistoryRow {
+  orderId: number;
+  status: string;
+  total: number;
+  createdAt: Date;
+  recipeId: number | null;
+  recipeName: string | null;
+  productId: number | null;
+  productName: string | null;
+  quantity: number | null;
+  size: string | null;
+  toppings: unknown;
+  unitPrice: number | null;
+  subtotal: number | null;
+}
+
 @Injectable()
 export class OrdersHistoryPrismaAdapter
   implements OrdersHistoryStore, OnModuleDestroy
@@ -22,30 +38,51 @@ export class OrdersHistoryPrismaAdapter
   }
 
   async findMine(userId: number): Promise<OrderHistoryRecord[]> {
-    const orders = await this.prisma.order.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      include: { items: true },
-    });
+    const rows = await this.prisma.$queryRaw<HistoryRow[]>`
+      SELECT
+        o."id" AS "orderId", o."status", o."total", o."createdAt",
+        oi."recipeId", oi."recipeName", oi."productId",
+        product."name" AS "productName",
+        oi."quantity", oi."size", oi."toppings", oi."unitPrice", oi."subtotal"
+      FROM "Order" o
+      LEFT JOIN "OrderItem" oi ON oi."orderId" = o."id"
+      LEFT JOIN "Product" product ON product."id" = oi."productId"
+      WHERE o."userId" = ${userId}
+      ORDER BY o."createdAt" DESC, o."id" DESC, oi."id" ASC
+    `;
 
-    return orders.map((order) => ({
-      id: order.id,
-      status: order.status,
-      total: order.total,
-      createdAt: order.createdAt,
-      items: order.items.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        size: item.size,
-        toppings: Array.isArray(item.toppings)
-          ? item.toppings.filter(
-              (value): value is string => typeof value === 'string',
-            )
+    const orders = new Map<number, OrderHistoryRecord>();
+    for (const row of rows) {
+      const id = Number(row.orderId);
+      let order = orders.get(id);
+      if (!order) {
+        order = {
+          id,
+          status: row.status,
+          total: Number(row.total),
+          createdAt: row.createdAt,
+          items: [],
+        };
+        orders.set(id, order);
+      }
+      if (row.quantity === null) continue;
+      order.items.push({
+        recipeId: row.recipeId === null ? null : Number(row.recipeId),
+        recipeName: row.recipeName ?? row.productName ?? 'Món đã ngừng kinh doanh',
+        // The old API used productId; new menu items alias Recipe.id for compatibility.
+        productId: row.productId === null
+          ? (row.recipeId === null ? null : Number(row.recipeId))
+          : Number(row.productId),
+        quantity: Number(row.quantity),
+        size: row.size ?? 'M',
+        toppings: Array.isArray(row.toppings)
+          ? row.toppings.filter((value): value is string => typeof value === 'string')
           : [],
-        unitPrice: item.unitPrice,
-        subtotal: item.subtotal,
-      })),
-    }));
+        unitPrice: Number(row.unitPrice),
+        subtotal: Number(row.subtotal),
+      });
+    }
+    return [...orders.values()];
   }
 
   async onModuleDestroy() {
