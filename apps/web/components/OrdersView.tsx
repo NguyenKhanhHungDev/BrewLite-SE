@@ -165,7 +165,7 @@ function OrdersData({ orderId }: { orderId?: string }) {
         </button>
         {orderId &&
           purchase?.orderId === selected.id &&
-          ["PENDING", "PAYMENT_FAILED"].includes(selected.status) && (
+          selected.status === "PENDING" && (
             <Link href="/checkout" className="bl-button">
               Về thanh toán
             </Link>

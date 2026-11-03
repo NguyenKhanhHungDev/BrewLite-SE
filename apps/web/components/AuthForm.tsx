@@ -12,7 +12,8 @@ export default function AuthForm() {
   const requested = params.get("next") ?? "/";
   const next =
     ["/checkout", "/history", "/cart"].includes(requested) ||
-    /^\/confirmation\/\d+$/.test(requested)
+    /^\/confirmation\/\d+$/.test(requested) ||
+    /^\/payment\/result\?orderId=[1-9]\d*$/.test(requested)
       ? requested
       : "/";
   const auth = useAuth();
