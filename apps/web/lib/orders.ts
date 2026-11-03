@@ -21,6 +21,7 @@ export type OrderRecord = {
   createdAt: string;
   items: {
     productId: number;
+    recipeName: string;
     quantity: number;
     size: Size;
     toppings: Topping[];
@@ -94,7 +95,7 @@ export function parseHistory(value: unknown): OrderRecord[] {
     const items = order.items.map((item: unknown) => {
       if (
         !isObject(item) ||
-        !integer(item.productId, 1) ||
+        !(integer(item.recipeId, 1) || integer(item.productId, 1)) ||
         !integer(item.quantity, 1) ||
         !isSize(item.size) ||
         !isToppings(item.toppings) ||
@@ -104,7 +105,13 @@ export function parseHistory(value: unknown): OrderRecord[] {
         throw new Error("Chi tiết đơn hàng không hợp lệ.");
       }
       return {
-        productId: item.productId,
+        productId: integer(item.recipeId, 1)
+          ? item.recipeId
+          : Number(item.productId),
+        recipeName:
+          typeof item.recipeName === "string" && item.recipeName.trim()
+            ? item.recipeName
+            : `Món #${item.productId ?? item.recipeId}`,
         quantity: item.quantity,
         size: item.size,
         toppings: item.toppings,

@@ -11,6 +11,25 @@
   --bl-body: var(--font-dm-sans), Arial, sans-serif;
   --bl-display: var(--font-fraunces), Georgia, serif;
 }
+.bl-admin h1 { margin: 0 0 24px; font-family: var(--bl-display); font-size: 32px; }
+.bl-admin-nav { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
+.bl-admin-nav a { padding: 10px 14px; border: 1px solid var(--bl-border); border-radius: 8px; color: var(--bl-coffee); }
+.bl-admin-nav a[aria-current="page"] { background: var(--bl-espresso); color: white; }
+.bl-admin-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.bl-admin-title h1 { margin: 0; }
+.bl-admin-cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,230px),1fr)); gap: 16px; margin: 20px 0; }
+.bl-admin-cards strong { font-size: 28px; }
+.bl-admin-table { max-width: 100%; overflow-x: auto; margin: 20px 0; }
+.bl-admin table { width: 100%; min-width: 760px; border-collapse: collapse; background: white; }
+.bl-admin th,.bl-admin td { padding: 14px; text-align: left; border-bottom: 1px solid var(--bl-border); }
+.bl-admin button:not(.bl-button) { min-height: 40px; padding: 8px; color: var(--bl-coffee); text-decoration: underline; cursor: pointer; }
+.bl-admin button:disabled { opacity: .5; cursor: not-allowed; }
+.bl-admin-form { margin: 20px 0; }
+.bl-admin-form fieldset { min-width: 0; padding: 0; border: 0; }
+.bl-admin-form label { display: flex; flex-direction: column; gap: 6px; margin: 14px 0; }
+.bl-admin-form input:not([type="checkbox"]),.bl-admin-form select { width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--bl-border); border-radius: 8px; }
+.bl-admin-recipe-row { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr) auto; align-items: center; gap: 10px; }
+@media(max-width:620px) { .bl-admin-recipe-row { grid-template-columns: minmax(0,1fr); } }
 * {
   box-sizing: border-box;
 }

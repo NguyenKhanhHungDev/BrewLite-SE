@@ -11,7 +11,15 @@ export default function AuthForm() {
   const params = useSearchParams();
   const requested = params.get("next") ?? "/";
   const next =
-    ["/checkout", "/history", "/cart"].includes(requested) ||
+    [
+      "/checkout",
+      "/history",
+      "/cart",
+      "/admin",
+      "/admin/ingredients",
+      "/admin/recipes",
+      "/admin/orders",
+    ].includes(requested) ||
     /^\/confirmation\/\d+$/.test(requested) ||
     /^\/payment\/result\?orderId=[1-9]\d*$/.test(requested)
       ? requested

@@ -1,14 +1,7 @@
-import type { Product } from "@/lib/products";
 import { paidStatuses, statusNames, type OrderRecord } from "@/lib/orders";
 import { money, optionText } from "@/lib/pricing";
 
-export default function OrderCard({
-  order,
-  products,
-}: {
-  order: OrderRecord;
-  products: Product[];
-}) {
+export default function OrderCard({ order }: { order: OrderRecord }) {
   const subtotal = order.items.reduce((sum, item) => sum + item.subtotal, 0);
   const discount = Math.max(0, subtotal - order.total);
   return (
@@ -31,9 +24,7 @@ export default function OrderCard({
         <div className="bl-summary-line" key={`${item.productId}-${index}`}>
           <div>
             <strong>
-              {item.quantity} ×{" "}
-              {products.find((product) => product.id === item.productId)
-                ?.name ?? `Món #${item.productId}`}
+              {item.quantity} × {item.recipeName}
             </strong>
             <small>{optionText(item.size, item.toppings)}</small>
             <small>Đơn giá đã chốt: {money(item.unitPrice)}</small>
