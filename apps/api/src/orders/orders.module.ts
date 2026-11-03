@@ -17,7 +17,9 @@ import { OrdersService } from './orders.service.js';
 
 @Module({
   imports: [AuthModule, LoyaltyModule],
-  controllers: [OrdersController, OrdersHistoryController, AdminOrdersController],
+  // OrdersHistoryController (GET /orders/me) must come before OrdersController,
+  // otherwise GET /orders/:id (ParseIntPipe) captures "me" and returns 400.
+  controllers: [OrdersHistoryController, OrdersController, AdminOrdersController],
   providers: [
     OrdersService,
     OrdersExpirationService,

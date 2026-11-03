@@ -204,8 +204,10 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
   async saveOrder(draft: OrderDraft): Promise<StoredOrderResult> {
     return this.prisma.$transaction(async (tx) => {
       if (draft.idempotencyKey) {
-        await tx.$queryRaw<Array<{ locked: null }>>`
-          SELECT pg_advisory_xact_lock(${draft.userId}, hashtext(${draft.idempotencyKey})) AS "locked"
+        // pg_advisory_xact_lock returns void, which the pg driver adapter cannot
+        // deserialize; cast to text so the lock is taken without a 500.
+        await tx.$queryRaw<Array<{ locked: string }>>`
+          SELECT pg_advisory_xact_lock(${draft.userId}, hashtext(${draft.idempotencyKey}))::text AS "locked"
         `;
         const existing = await tx.$queryRaw<StoredOrderResult[]>`
           SELECT "id", "status", "total", "idempotencyHash"
