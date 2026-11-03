@@ -15,15 +15,16 @@ import { parseProducts } from "@/lib/products";
 import { parsePromoCode, previewPromotion } from "@/lib/promotion";
 import {
   paidStatuses,
-  parseHistory,
   parseOrderResult,
-  parsePayment,
   type OrderRecord,
   type OrderResult,
-  type PaymentBody,
-  type PaymentMethod,
-  type SimulateResult,
 } from "@/lib/orders";
+import {
+  parsePaymentLink,
+  parsePaymentStatus,
+  paymentView,
+  type PaymentStatus,
+} from "@/lib/payments";
 import { useAuth } from "./AuthProvider";
 import { useCart } from "./CartProvider";
 
@@ -34,7 +35,7 @@ type Draft = {
   promoCode?: string;
 };
 type Purchase = Draft & OrderResult & { cartCleared: boolean };
-type Attempt = { key: string; body: PaymentBody };
+type Attempt = { key: string; orderId: number; provider: "ZALOPAY" | "LEGACY" };
 type State = {
   draft: Draft | null;
   purchase: Purchase | null;
@@ -58,7 +59,8 @@ type CheckoutApi = State & {
   applyPromo: () => void;
   removePromo: () => void;
   createOrder: (lines: CartLine[], promoCode?: string) => Promise<OrderResult>;
-  pay: (method: PaymentMethod, result: SimulateResult) => Promise<OrderResult>;
+  startPayment: () => Promise<string>;
+  syncPayment: (status: PaymentStatus) => void;
   syncOrder: (order: OrderRecord) => void;
 };
 const Context = createContext<CheckoutApi | null>(null);
@@ -105,22 +107,24 @@ function restore(value: unknown): State {
       !isObject(saved) ||
       typeof saved.key !== "string" ||
       !saved.key ||
-      !isObject(saved.body) ||
-      saved.body.orderId !== purchase?.orderId ||
-      (saved.body.method !== "WALLET" && saved.body.method !== "CARD") ||
-      (saved.body.simulateResult !== "SUCCESS" &&
-        saved.body.simulateResult !== "FAILURE")
+      saved.key.length > 200
+    )
+      throw new Error();
+    const body = isObject(saved.body) ? saved.body : null;
+    const legacy = body !== null;
+    const orderId = body ? body.orderId : saved.orderId;
+    if (
+      orderId !== purchase?.orderId ||
+      (!legacy && saved.provider !== "ZALOPAY" && saved.provider !== "LEGACY")
     )
       throw new Error();
     attempt = {
       key: saved.key,
-      body: {
-        orderId: Number(saved.body.orderId),
-        method: saved.body.method,
-        simulateResult: saved.body.simulateResult,
-      },
+      orderId: Number(orderId),
+      provider: legacy ? "LEGACY" : (saved.provider as Attempt["provider"]),
     };
   }
+
   const appliedCode =
     value.appliedCode === undefined
       ? (draft?.promoCode ?? purchase?.promoCode ?? "")
@@ -211,6 +215,35 @@ function CheckoutStore({ children }: { children: ReactNode }) {
     [session?.userId, commit, completePurchase],
   );
 
+  const syncPayment = useCallback(
+    (status: PaymentStatus) => {
+      const saved = current.current.purchase;
+      if (
+        !saved ||
+        saved.owner !== session?.userId ||
+        saved.orderId !== status.orderId
+      )
+        return;
+      if (status.latestPayment && status.latestPayment.amount !== saved.total) {
+        throw new Error("Số tiền thanh toán không khớp đơn hàng.");
+      }
+      const paid = paymentView(status) === "success";
+      if (saved.status === status.orderStatus && (!paid || saved.cartCleared))
+        return;
+      commit({
+        ...current.current,
+        purchase: {
+          ...saved,
+          status: status.orderStatus,
+          cartCleared: saved.cartCleared || paid,
+        },
+        attempt: paid ? null : current.current.attempt,
+      });
+      if (paid && !saved.cartCleared) completePurchase(saved.snapshot);
+    },
+    [session?.userId, commit, completePurchase],
+  );
+
   function checkPromoEditable() {
     const { draft, purchase } = current.current;
     if (
@@ -219,8 +252,7 @@ function CheckoutStore({ children }: { children: ReactNode }) {
       draft ||
       (purchase &&
         purchase.owner === session?.userId &&
-        !paidStatuses.includes(purchase.status) &&
-        purchase.status !== "CANCELLED")
+        purchase.status === "PENDING")
     ) {
       throw new Error("Không thể đổi mã cho yêu cầu đã gửi.");
     }
@@ -255,10 +287,7 @@ function CheckoutStore({ children }: { children: ReactNode }) {
     if (!state.ready || !session)
       throw new Error("Vui lòng đăng nhập trước khi tạo đơn.");
     const existing = current.current.purchase;
-    if (
-      existing?.owner === session.userId &&
-      ["PENDING", "PAYMENT_FAILED"].includes(existing.status)
-    )
+    if (existing?.owner === session.userId && existing.status === "PENDING")
       return existing;
     processing.current = true;
     setBusy(true);
@@ -339,63 +368,53 @@ function CheckoutStore({ children }: { children: ReactNode }) {
     }
   }
 
-  async function pay(
-    method: PaymentMethod,
-    result: SimulateResult,
-  ): Promise<OrderResult> {
+  async function startPayment(): Promise<string> {
     if (processing.current) throw new Error("Yêu cầu đang được xử lý.");
     const purchase = current.current.purchase;
     if (!session || !purchase || purchase.owner !== session.userId)
       throw new Error("Vui lòng đăng nhập đúng tài khoản của đơn hàng.");
+    if (purchase.status !== "PENDING")
+      throw new Error("Đơn không còn ở trạng thái được thanh toán.");
     processing.current = true;
     setBusy(true);
     try {
-      const orders = parseHistory(await request("/orders/me"));
-      const latest = orders.find((order) => order.id === purchase.orderId);
-      if (!latest) throw new Error("Không tìm thấy đơn hàng của bạn.");
-      syncOrder(latest);
-      if (paidStatuses.includes(latest.status))
-        return {
-          orderId: latest.id,
-          status: latest.status,
-          total: latest.total,
-        };
-      if (!["PENDING", "PAYMENT_FAILED"].includes(latest.status))
-        throw new Error("Đơn không còn ở trạng thái được thanh toán.");
-      if (latest.total !== purchase.total)
+      const status = parsePaymentStatus(
+        await request(`/payments/${purchase.orderId}/status`),
+        purchase.orderId,
+      );
+      syncPayment(status);
+      if (
+        status.orderStatus !== "PENDING" ||
+        paymentView(status) !== "pending"
+      ) {
+        throw new Error("Đơn đã có kết quả. Hãy xem trạng thái thanh toán.");
+      }
+      const savedAttempt = current.current.attempt;
+      if (
+        savedAttempt?.provider === "LEGACY" ||
+        (status.latestPayment &&
+          (!savedAttempt || status.latestPayment.provider !== "ZALOPAY"))
+      ) {
         throw new Error(
-          "Tổng tiền trên máy chủ đã thay đổi. Hãy kiểm tra và xác nhận lại.",
+          "Đơn đang có giao dịch trước đó. Hãy kiểm tra trạng thái trước khi thanh toán lại.",
         );
-      const attempt = current.current.attempt ?? {
+      }
+      const attempt: Attempt = savedAttempt ?? {
         key: crypto.randomUUID(),
-        body: { orderId: purchase.orderId, method, simulateResult: result },
+        orderId: purchase.orderId,
+        provider: "ZALOPAY",
       };
+      // Persist before sending; network errors and refresh must reuse the same key.
       commit({ ...current.current, attempt });
-      const data = await request("/payments", {
+      const response = await request("/payments/zalopay/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": attempt.key,
         },
-        body: JSON.stringify(attempt.body),
+        body: JSON.stringify({ orderId: purchase.orderId }),
       });
-      const payment = parsePayment(data, purchase.orderId);
-      const paid = payment.status === "PAID";
-      commit({
-        ...current.current,
-        purchase: {
-          ...purchase,
-          status: payment.status,
-          cartCleared: purchase.cartCleared || paid,
-        },
-        attempt: null,
-      });
-      if (paid && !purchase.cartCleared) completePurchase(purchase.snapshot);
-      return {
-        orderId: purchase.orderId,
-        status: payment.status,
-        total: latest.total,
-      };
+      return parsePaymentLink(response, purchase.orderId).paymentUrl;
     } finally {
       processing.current = false;
       setBusy(false);
@@ -412,7 +431,8 @@ function CheckoutStore({ children }: { children: ReactNode }) {
         applyPromo,
         removePromo,
         createOrder,
-        pay,
+        startPayment,
+        syncPayment,
         syncOrder,
       }}
     >

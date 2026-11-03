@@ -17,14 +17,19 @@ export async function requestJson(
     const response = await fetch(path, {
       ...init,
       cache: "no-store",
-      signal: controller.signal,
+      signal: init.signal
+        ? AbortSignal.any([init.signal, controller.signal])
+        : controller.signal,
     });
     const data: unknown = await response.json().catch(() => null);
     if (!response.ok) {
       let message = `Không thể xử lý yêu cầu (HTTP ${response.status}).`;
       if (response.status === 401)
         message = "Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.";
-      else if (response.status === 404 && path === "/payments")
+      else if (
+        response.status === 404 &&
+        (path === "/payments" || path === "/payments/zalopay/create")
+      )
         message =
           "Chức năng thanh toán trên máy chủ chưa sẵn sàng. Giỏ hàng được giữ nguyên.";
       else if (response.status === 503)

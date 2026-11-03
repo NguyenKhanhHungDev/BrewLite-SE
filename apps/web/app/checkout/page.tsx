@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCart } from "@/components/CartProvider";
 import { useAuth } from "@/components/AuthProvider";
@@ -9,12 +8,7 @@ import { useCheckout } from "@/components/CheckoutProvider";
 import CartSummary from "@/components/CartSummary";
 import PromotionField from "@/components/PromotionField";
 import LoyaltyBalance from "@/components/LoyaltyBalance";
-import {
-  paidStatuses,
-  statusNames,
-  type PaymentMethod,
-  type SimulateResult,
-} from "@/lib/orders";
+import { paidStatuses, statusNames } from "@/lib/orders";
 import { money } from "@/lib/pricing";
 import { cartTotal } from "@/lib/cart";
 import { previewPromotion } from "@/lib/promotion";
@@ -23,59 +17,50 @@ export default function CheckoutPage() {
   const cart = useCart();
   const auth = useAuth();
   const checkout = useCheckout();
-  const router = useRouter();
-  const [method, setMethod] = useState<PaymentMethod>("WALLET");
-  const [simulateResult, setSimulateResult] =
-    useState<SimulateResult>("SUCCESS");
   const [error, setError] = useState("");
+  const [redirecting, setRedirecting] = useState(false);
   const owned =
     checkout.purchase?.owner === auth.session?.userId
       ? checkout.purchase
       : null;
+  // Keep a receipt after success, but let a newly filled cart start a new checkout.
   const purchase =
-    owned &&
-    !paidStatuses.includes(owned.status) &&
-    owned.status !== "CANCELLED"
+    owned && (!paidStatuses.includes(owned.status) || !cart.lines.length)
       ? owned
       : null;
-  const attempt = purchase ? checkout.attempt : null;
   const draft =
     checkout.draft?.owner === auth.session?.userId ? checkout.draft : null;
-  const promoCode = purchase
-    ? (purchase.promoCode ?? "")
-    : draft
-      ? (draft.promoCode ?? "")
-      : checkout.appliedCode;
+  const promoCode =
+    purchase?.promoCode ?? draft?.promoCode ?? checkout.appliedCode;
   const summaryLines = purchase?.snapshot ?? draft?.snapshot ?? cart.lines;
   const preview = previewPromotion(
     cartTotal(summaryLines),
     promoCode || undefined,
   );
+  const busy = checkout.busy || redirecting;
+  const terminal = purchase && purchase.status !== "PENDING";
+  const paid = purchase && paidStatuses.includes(purchase.status);
 
   async function createOrder() {
     setError("");
     try {
-      const order = await checkout.createOrder(
-        cart.lines,
-        checkout.appliedCode || undefined,
-      );
-      if (paidStatuses.includes(order.status) || order.status === "CANCELLED") {
-        router.push(`/confirmation/${order.orderId}`);
-      }
+      await checkout.createOrder(cart.lines, checkout.appliedCode || undefined);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không tạo được đơn.");
     }
   }
+
   async function pay() {
+    if (busy) return;
     setError("");
     try {
-      const order = await checkout.pay(method, simulateResult);
-      router.push(`/confirmation/${order.orderId}`);
+      const url = await checkout.startPayment();
+      setRedirecting(true);
+      window.location.assign(url);
     } catch (cause) {
+      setRedirecting(false);
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "Chưa xác nhận được kết quả thanh toán.",
+        cause instanceof Error ? cause.message : "Chưa tạo được thanh toán.",
       );
     }
   }
@@ -117,12 +102,11 @@ export default function CheckoutPage() {
             </section>
           ) : (
             <div className="bl-flow-grid">
-              <section className="bl-panel">
+              <section className="bl-panel" aria-busy={busy}>
                 {!auth.session ? (
                   <>
                     <h2>Đăng nhập để tiếp tục</h2>
-                    <p>Giỏ hàng của bạn được giữ nguyên.</p>
-                    {auth.expired && <p>Phiên đăng nhập đã hết hạn.</p>}
+                    <p>Giỏ hàng được giữ nguyên.</p>
                     <Link href="/login?next=/checkout" className="bl-button">
                       Đăng nhập
                     </Link>
@@ -130,22 +114,22 @@ export default function CheckoutPage() {
                 ) : !purchase ? (
                   <>
                     <h2>Xác nhận đơn hàng</h2>
-                    {checkout.draft?.owner === auth.session.userId && (
+                    {draft && (
                       <p className="bl-alert">
-                        Yêu cầu tạo đơn trước chưa có kết quả. Kiểm tra lại để
-                        nhận đúng đơn đã gửi.
+                        Yêu cầu trước chưa có kết quả. Kiểm tra lại để nhận đúng
+                        đơn đã gửi.
                       </p>
                     )}
                     <button
-                      className="bl-button"
+                      className="bl-button bl-full"
                       type="button"
-                      disabled={checkout.busy}
+                      disabled={busy}
                       onClick={createOrder}
                     >
-                      {checkout.busy
+                      {busy
                         ? "Đang tạo đơn..."
-                        : checkout.draft
-                          ? "Kiểm tra lại yêu cầu tạo đơn"
+                        : draft
+                          ? "Kiểm tra lại yêu cầu"
                           : "Xác nhận tạo đơn"}
                     </button>
                   </>
@@ -153,98 +137,67 @@ export default function CheckoutPage() {
                   <>
                     <h2>Đơn #{purchase.orderId}</h2>
                     <p>
-                      <span className="bl-status">{purchase.status}</span> ·{" "}
-                      {statusNames[purchase.status]}
-                    </p>
-                    <p>
-                      Tổng tiền đã chốt:{" "}
-                      <strong>{money(purchase.total)}</strong>
-                    </p>
-                    {purchase.total !== preview.payable && (
-                      <p className="bl-alert" role="status">
-                        Tổng tiền đã thay đổi. Vui lòng kiểm tra trước khi thanh
-                        toán.
-                      </p>
-                    )}
-                    <p className="bl-muted">
-                      Thay đổi giỏ không thay đổi đơn đã tạo.
-                    </p>
-                    {attempt && (
-                      <p className="bl-alert" role="status">
-                        Chưa nhận được kết quả thanh toán. Hãy kiểm tra lại lần
-                        thanh toán trước khi đổi phương thức.
-                      </p>
-                    )}
-                    <fieldset
-                      className="bl-payment-options"
-                      disabled={checkout.busy || Boolean(attempt)}
-                    >
-                      <legend>Phương thức thanh toán</legend>
-                      {(["WALLET", "CARD"] as const).map((value) => (
-                        <label className="bl-payment-option" key={value}>
-                          <input
-                            type="radio"
-                            name="payment-method"
-                            value={value}
-                            checked={(attempt?.body.method ?? method) === value}
-                            onChange={() => setMethod(value)}
-                          />
-                          <span>
-                            <strong>
-                              {value === "WALLET"
-                                ? "Ví điện tử"
-                                : "Thẻ mô phỏng"}
-                            </strong>
-                          </span>
-                        </label>
-                      ))}
-                    </fieldset>
-                    <label className="bl-field">
-                      Kết quả mô phỏng
-                      <select
-                        disabled={checkout.busy || Boolean(attempt)}
-                        value={attempt?.body.simulateResult ?? simulateResult}
-                        onChange={(event) =>
-                          setSimulateResult(
-                            event.target.value as SimulateResult,
-                          )
-                        }
+                      <span
+                        className={`bl-status${paid ? " bl-status-paid" : ""}`}
                       >
-                        <option value="SUCCESS">Thành công</option>
-                        <option value="FAILURE">Thất bại</option>
-                      </select>
-                    </label>
-                    <p className="bl-muted">
-                      Thanh toán mô phỏng, không thu tiền thật.
+                        {statusNames[purchase.status]}
+                      </span>
                     </p>
-                    <button
-                      className="bl-button bl-full"
-                      type="button"
-                      disabled={checkout.busy}
-                      onClick={pay}
-                    >
-                      {checkout.busy
-                        ? "Đang xử lý..."
-                        : attempt
-                          ? "Kiểm tra lại kết quả thanh toán"
-                          : `Thanh toán ${money(purchase.total)}`}
-                    </button>
+                    {!terminal ? (
+                      <>
+                        <div className="bl-payment-method">
+                          <span>Phương thức thanh toán</span>
+                          <strong>ZaloPay</strong>
+                        </div>
+                        <p className="bl-muted bl-payment-note">
+                          Đơn được giữ trong 15 phút từ lúc tạo.
+                        </p>
+                        <button
+                          className="bl-button bl-full"
+                          type="button"
+                          disabled={busy}
+                          onClick={pay}
+                        >
+                          {redirecting
+                            ? "Đang chuyển đến ZaloPay..."
+                            : checkout.busy
+                              ? "Đang kiểm tra..."
+                              : `Thanh toán ${money(purchase.total)}`}
+                        </button>
+                      </>
+                    ) : !paid ? (
+                      <>
+                        <p className="bl-muted">
+                          Đơn đã kết thúc. Kiểm tra trạng thái trước khi đặt đơn
+                          mới.
+                        </p>
+                        {!!cart.lines.length && (
+                          <button
+                            className="bl-button bl-full"
+                            type="button"
+                            disabled={busy}
+                            onClick={createOrder}
+                          >
+                            {busy ? "Đang tạo đơn..." : "Tạo đơn mới"}
+                          </button>
+                        )}
+                      </>
+                    ) : null}
                     <Link
-                      href={`/confirmation/${purchase.orderId}`}
-                      className="bl-detail-back"
+                      href={`/payment/result?orderId=${purchase.orderId}`}
+                      className="bl-detail-back bl-payment-link"
                     >
-                      Xem trạng thái đơn
+                      Xem trạng thái thanh toán
                     </Link>
                   </>
                 )}
               </section>
               <div className="bl-checkout-summary">
-                <section className="bl-panel" aria-label="Khuyến mãi">
-                  <PromotionField
-                    locked={Boolean(purchase || draft || checkout.draft)}
-                    code={promoCode}
-                  />
-                </section>
+                {!purchase && (
+                  <section className="bl-panel" aria-label="Khuyến mãi">
+                    <PromotionField locked={Boolean(draft)} code={promoCode} />
+                  </section>
+                )}
                 <CartSummary
                   lines={summaryLines}
                   total={purchase?.total}

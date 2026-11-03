@@ -830,3 +830,10 @@ button:focus-visible {
   .bl-order-card .bl-summary-line { flex-wrap: nowrap; }
   .bl-auth-panel { padding: 22px; }
 }
+
+/* Checkout and payment result reuse the existing BrewLite panels and controls. */
+.bl-payment-method { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 20px; margin: 4px 0 20px; border-top: 1px solid var(--bl-border); }
+.bl-payment-method > span { color: var(--bl-muted); font-size: 14px; }
+.bl-payment-note { font-size: 14px; }
+.bl-payment-link { display: block; margin-top: 18px; text-align: center; }
+.bl-payment-summary-name { overflow-wrap: anywhere; }
