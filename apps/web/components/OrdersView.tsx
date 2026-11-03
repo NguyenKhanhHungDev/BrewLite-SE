@@ -6,14 +6,12 @@ import { useAuth } from "./AuthProvider";
 import { useCheckout } from "./CheckoutProvider";
 import OrderCard from "./OrderCard";
 import LoyaltyBalance from "./LoyaltyBalance";
-import { requestJson } from "@/lib/api";
 import { parseHistory, paidStatuses, type OrderRecord } from "@/lib/orders";
-import { parseProducts, type Product } from "@/lib/products";
 
 type State =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; orders: OrderRecord[]; products: Product[] };
+  | { status: "ready"; orders: OrderRecord[] };
 
 export default function OrdersView({ orderId }: { orderId?: string }) {
   const auth = useAuth();
@@ -59,17 +57,13 @@ function OrdersData({ orderId }: { orderId?: string }) {
     async function load() {
       try {
         const orders = parseHistory(await request("/orders/me"));
-        let products: Product[] = [];
-        try {
-          products = parseProducts(await requestJson("/products"));
-        } catch {}
         if (disposed) return;
         const selected =
           orderId === undefined
             ? orders
             : orders.filter((order) => String(order.id) === orderId);
         selected.forEach(syncOrder);
-        setState({ status: "ready", orders: selected, products });
+        setState({ status: "ready", orders: selected });
       } catch (cause) {
         if (!disposed)
           setState({
@@ -138,7 +132,7 @@ function OrdersData({ orderId }: { orderId?: string }) {
       <div className="bl-order-list">
         {state.orders.map((order) => (
           <div key={order.id}>
-            <OrderCard order={order} products={state.products} />
+            <OrderCard order={order} />
             {!orderId && (
               <Link
                 href={`/confirmation/${order.id}`}
