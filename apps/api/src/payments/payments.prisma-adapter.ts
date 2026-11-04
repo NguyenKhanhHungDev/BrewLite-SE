@@ -1,4 +1,4 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import {
   BadRequestException,
   ConflictException,
@@ -10,16 +10,19 @@ import {
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { pointsForPaidOrder } from '../loyalty/loyalty.service.js';
-import { assertTransition, type OrderStatus } from '../orders/order-state.js';
+import {
+  consumeReservation,
+  releaseReservation,
+} from '../orders/orders.inventory.js';
 import type {
-  CreateVnpayPaymentRecordInput,
-  CreateVnpayPaymentRecordResult,
+  ApplyZalopayResolutionInput,
+  ApplyZalopayResolutionResult,
+  ClaimZalopayAttemptInput,
+  ClaimZalopayAttemptResult,
   OrderPaymentStatusResult,
-  PayOnceInput,
   PaymentOrdersStore,
-  PaymentResult,
-  VnpayIpnProcessInput,
-  VnpayIpnResponse,
+  PendingZalopayAttempt,
+  SaveZalopayPaymentUrlInput,
 } from './payments.contract.js';
 
 function isUniqueConstraintError(err: unknown): boolean {
@@ -36,6 +39,7 @@ export class PaymentsPrismaAdapter
   implements PaymentOrdersStore, OnModuleDestroy
 {
   private readonly db: PrismaClient;
+  private readonly paymentUrlCache = new Map<number, string>();
 
   constructor() {
     const url = process.env.DATABASE_URL;
@@ -45,80 +49,74 @@ export class PaymentsPrismaAdapter
     });
   }
 
-  private verifySavedPayment(
-    saved: {
-      userId: number | null;
-      orderId: number;
-      method: string;
-      requestHash: string | null;
-      status: string;
-    },
-    input: PayOnceInput,
-  ): PaymentResult {
-    if (saved.userId !== input.userId) {
-      throw new ForbiddenException('Payment does not belong to current user');
-    }
-    if (
-      saved.orderId !== input.request.orderId ||
-      saved.method !== input.request.method ||
-      saved.requestHash !== input.requestHash
-    ) {
-      throw new ConflictException(
-        'Idempotency-Key already used with different request parameters',
-      );
-    }
-    return {
-      orderId: saved.orderId,
-      status: saved.status as 'PAID' | 'PAYMENT_FAILED',
-    };
+  private buildAppTransId(
+    orderId: number,
+    paymentId: number,
+    now = new Date(),
+  ): string {
+    const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+    const yy = String(vnTime.getUTCFullYear()).slice(-2);
+    const mm = String(vnTime.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(vnTime.getUTCDate()).padStart(2, '0');
+    return `${yy}${mm}${dd}_BREW_${orderId}_${paymentId}`;
   }
 
-  async payOnce(input: PayOnceInput): Promise<PaymentResult> {
-    const { userId, idempotencyKey, requestHash, request } = input;
-
-    const initialOrder = await this.db.order.findUnique({
-      where: { id: request.orderId },
-      select: { id: true, userId: true },
-    });
-    if (!initialOrder) {
-      throw new NotFoundException('Order not found');
+  private isOrderExpired(order: {
+    status: string;
+    expiresAt?: Date | null;
+  }): boolean {
+    if (order.status === 'EXPIRED') return true;
+    if (order.expiresAt && new Date(order.expiresAt).getTime() <= Date.now()) {
+      return true;
     }
-    if (initialOrder.userId !== userId) {
-      throw new ForbiddenException('Order does not belong to current user');
-    }
+    return false;
+  }
 
-    const existingPayment = await this.db.payment.findUnique({
-      where: {
-        userId_idempotencyKey: { userId, idempotencyKey },
-      },
-    });
-    if (existingPayment) {
-      return this.verifySavedPayment(existingPayment, input);
-    }
-
-    const targetStatus: 'PAID' | 'PAYMENT_FAILED' =
-      request.simulateResult === 'SUCCESS' ? 'PAID' : 'PAYMENT_FAILED';
+  async claimZalopayAttempt(
+    input: ClaimZalopayAttemptInput,
+  ): Promise<ClaimZalopayAttemptResult> {
+    const { userId, orderId, idempotencyKey, requestHash } = input;
 
     try {
-      return await this.db.$transaction(async (tx) => {
-        const inTxPayment = await tx.payment.findUnique({
+      return await this.db.$transaction(async (tx: any) => {
+        const existingByKey = await tx.payment.findUnique({
           where: {
             userId_idempotencyKey: { userId, idempotencyKey },
           },
         });
-        if (inTxPayment) {
-          return this.verifySavedPayment(inTxPayment, input);
+
+        if (existingByKey) {
+          if (existingByKey.userId !== userId) {
+            throw new ForbiddenException(
+              'Payment does not belong to current user',
+            );
+          }
+          if (
+            existingByKey.orderId !== orderId ||
+            existingByKey.requestHash !== requestHash ||
+            existingByKey.provider !== 'ZALOPAY'
+          ) {
+            throw new ConflictException(
+              'Idempotency-Key already used with different request parameters',
+            );
+          }
+
+          return {
+            mode: 'REPLAY' as const,
+            orderId: existingByKey.orderId,
+            paymentId: existingByKey.id,
+            amount: existingByKey.amount,
+            transactionRef:
+              existingByKey.transactionRef ??
+              this.buildAppTransId(existingByKey.orderId, existingByKey.id),
+            status: existingByKey.status,
+            cachedPaymentUrl:
+              this.paymentUrlCache.get(existingByKey.id) ?? null,
+          };
         }
 
         const order = await tx.order.findUnique({
-          where: { id: request.orderId },
-          select: {
-            id: true,
-            userId: true,
-            status: true,
-            total: true,
-            loyaltyAwarded: true,
-          },
+          where: { id: orderId },
         });
 
         if (!order) {
@@ -127,73 +125,64 @@ export class PaymentsPrismaAdapter
         if (order.userId !== userId) {
           throw new ForbiddenException('Order does not belong to current user');
         }
-
+        if (this.isOrderExpired(order)) {
+          throw new ConflictException('Order has expired and cannot be paid');
+        }
         if (order.status !== 'PENDING' && order.status !== 'PAYMENT_FAILED') {
           throw new ConflictException(
-            `Order in status ${order.status} cannot be paid`,
+            `Order in status ${order.status} cannot initiate payment`,
+          );
+        }
+        if (!Number.isSafeInteger(order.total) || order.total <= 0) {
+          throw new BadRequestException(
+            'Order total is invalid for ZaloPay payment',
           );
         }
 
-        await tx.payment.create({
+        const activePending = await tx.payment.findFirst({
+          where: {
+            orderId: order.id,
+            provider: 'ZALOPAY',
+            status: 'PENDING',
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (activePending && activePending.idempotencyKey !== idempotencyKey) {
+          throw new ConflictException(
+            'Another ZaloPay payment attempt is currently active for this order',
+          );
+        }
+
+        const created = await tx.payment.create({
           data: {
             orderId: order.id,
             userId,
-            provider: 'MOCK',
+            provider: 'ZALOPAY',
+            method: 'ZALOPAY',
             idempotencyKey,
             requestHash,
             amount: order.total,
-            method: request.method,
-            status: targetStatus,
-            paidAt: targetStatus === 'PAID' ? new Date() : null,
+            status: 'PENDING',
           },
         });
 
-        if (order.status === 'PAYMENT_FAILED') {
-          assertTransition(
-            'PAYMENT_FAILED' as OrderStatus,
-            'PENDING' as OrderStatus,
-          );
-          const reopened = await tx.order.updateMany({
-            where: { id: order.id, userId, status: 'PAYMENT_FAILED' },
-            data: { status: 'PENDING' },
-          });
-          if (reopened.count !== 1) {
-            throw new ConflictException('Order state changed concurrently');
-          }
-        }
+        const appTransId = this.buildAppTransId(order.id, created.id);
 
-        assertTransition('PENDING' as OrderStatus, targetStatus as OrderStatus);
-        const transitioned = await tx.order.updateMany({
-          where: { id: order.id, userId, status: 'PENDING' },
-          data: { status: targetStatus },
+        const updated = await tx.payment.update({
+          where: { id: created.id },
+          data: { transactionRef: appTransId },
         });
-        if (transitioned.count !== 1) {
-          throw new ConflictException('Order is no longer PENDING');
-        }
 
-        if (targetStatus === 'PAID') {
-          const points = pointsForPaidOrder(order.total);
-          const claimed = await tx.order.updateMany({
-            where: {
-              id: order.id,
-              userId,
-              status: 'PAID',
-              loyaltyAwarded: false,
-            },
-            data: { loyaltyAwarded: true },
-          });
-
-          if (claimed.count === 1 && points > 0) {
-            await tx.user.update({
-              where: { id: userId },
-              data: {
-                loyaltyPoints: { increment: points },
-              },
-            });
-          }
-        }
-
-        return { orderId: order.id, status: targetStatus };
+        return {
+          mode: 'NEW' as const,
+          orderId: order.id,
+          paymentId: updated.id,
+          amount: updated.amount,
+          transactionRef: appTransId,
+          status: updated.status,
+          cachedPaymentUrl: null,
+        };
       });
     } catch (error) {
       if (isUniqueConstraintError(error)) {
@@ -203,180 +192,252 @@ export class PaymentsPrismaAdapter
           },
         });
         if (saved) {
-          return this.verifySavedPayment(saved, input);
+          if (
+            saved.orderId !== orderId ||
+            saved.requestHash !== requestHash ||
+            saved.provider !== 'ZALOPAY'
+          ) {
+            throw new ConflictException(
+              'Idempotency-Key already used with different request parameters',
+            );
+          }
+          return {
+            mode: 'REPLAY',
+            orderId: saved.orderId,
+            paymentId: saved.id,
+            amount: saved.amount,
+            transactionRef:
+              saved.transactionRef ??
+              this.buildAppTransId(saved.orderId, saved.id),
+            status: saved.status,
+            cachedPaymentUrl: this.paymentUrlCache.get(saved.id) ?? null,
+          };
         }
       }
       throw error;
     }
   }
 
-  // --- VNPAY SANDBOX: 1. Tạo bản ghi Payment PENDING từ Order.total ---
-  async createVnpayPayment(
-    input: CreateVnpayPaymentRecordInput,
-  ): Promise<CreateVnpayPaymentRecordResult> {
-    const { userId, orderId, transactionRef } = input;
-
-    const order = await this.db.order.findUnique({
-      where: { id: orderId },
-      select: { id: true, userId: true, status: true, total: true },
-    });
-
-    if (!order) {
-      throw new NotFoundException('Order not found');
-    }
-    if (order.userId !== userId) {
-      throw new ForbiddenException('Order does not belong to current user');
-    }
-    if (order.status !== 'PENDING' && order.status !== 'PAYMENT_FAILED') {
-      throw new ConflictException(
-        `Order in status ${order.status} cannot initiate payment`,
-      );
-    }
-    if (!Number.isSafeInteger(order.total) || order.total <= 0) {
-      throw new BadRequestException('Order total is invalid for VNPAY payment');
-    }
-
-    const payment = await this.db.payment.create({
-      data: {
-        orderId: order.id,
-        userId,
-        provider: 'VNPAY',
-        transactionRef,
-        amount: order.total,
-        method: 'VNPAY',
+  async saveZalopayPaymentUrl(
+    input: SaveZalopayPaymentUrlInput,
+  ): Promise<void> {
+    this.paymentUrlCache.set(input.paymentId, input.paymentUrl);
+    // Chỉ update nếu trạng thái vẫn là PENDING để không bao giờ ghi đè SUCCESS về PENDING nếu callback đến trước
+    await this.db.payment.updateMany({
+      where: {
+        id: input.paymentId,
         status: 'PENDING',
       },
+      data: {
+        transactionRef: input.transactionRef,
+      },
     });
-
-    return {
-      orderId: order.id,
-      paymentId: payment.id,
-      amount: order.total,
-      transactionRef,
-    };
   }
 
-  // --- VNPAY SANDBOX: 2. Xử lý IPN nguyên tử và chống trùng lặp ---
-  async processVnpayIpn(
-    input: VnpayIpnProcessInput,
-  ): Promise<VnpayIpnResponse> {
-    const payment = await this.db.payment.findUnique({
-      where: { transactionRef: input.transactionRef },
-    });
-
-    if (!payment) {
-      return { RspCode: '01', Message: 'Order not found' };
-    }
-
-    // Kiểm tra số tiền phản hồi phải khớp tuyệt đối với số tiền trong DB
-    if (payment.amount !== input.amountVnd) {
-      return { RspCode: '04', Message: 'Invalid amount' };
-    }
-
-    // Nếu giao dịch đã được xử lý trước đó -> trả mã 02 Idempotent theo chuẩn VNPAY
-    if (payment.status !== 'PENDING') {
-      return { RspCode: '02', Message: 'Order already confirmed' };
-    }
-
-    const isSuccess =
-      input.responseCode === '00' && input.transactionStatus === '00';
-    const isCancelled = input.responseCode === '24';
-    const nextPaymentStatus = isSuccess
-      ? 'SUCCESS'
-      : isCancelled
-        ? 'CANCELLED'
-        : 'FAILED';
-
-    await this.db.$transaction(async (tx) => {
-      const currentPayment = await tx.payment.findUnique({
-        where: { id: payment.id },
+  async applyZalopayResolution(
+    input: ApplyZalopayResolutionInput,
+  ): Promise<ApplyZalopayResolutionResult> {
+    return this.db.$transaction(async (tx: any) => {
+      const payment = await tx.payment.findUnique({
+        where: { transactionRef: input.transactionRef },
       });
-      if (!currentPayment || currentPayment.status !== 'PENDING') {
-        return;
+
+      if (!payment || payment.provider !== 'ZALOPAY') {
+        throw new NotFoundException(
+          `ZaloPay payment with ref ${input.transactionRef} not found`,
+        );
       }
 
-      const claimedPayment = await tx.payment.updateMany({
-        where: { id: payment.id, status: 'PENDING' },
-        data: {
-          status: nextPaymentStatus,
-          providerTransactionId: input.providerTransactionId ?? null,
-          paidAt: isSuccess ? new Date() : null,
-        },
-      });
+      if (payment.amount !== input.amountVnd) {
+        throw new BadRequestException(
+          `Amount mismatch: expected ${payment.amount}, received ${input.amountVnd}`,
+        );
+      }
 
-      if (claimedPayment.count !== 1) {
-        return;
+      if (payment.status !== 'PENDING') {
+        return {
+          applied: false,
+          duplicate: true,
+          paymentStatus: payment.status,
+        };
       }
 
       const order = await tx.order.findUnique({
         where: { id: payment.orderId },
-        select: {
-          id: true,
-          userId: true,
-          status: true,
-          total: true,
-          loyaltyAwarded: true,
-        },
       });
 
       if (!order) {
-        return;
+        throw new NotFoundException(`Order #${payment.orderId} not found`);
       }
 
-      if (isSuccess) {
-        if (order.status === 'PAYMENT_FAILED') {
-          assertTransition(
-            'PAYMENT_FAILED' as OrderStatus,
-            'PENDING' as OrderStatus,
-          );
-          await tx.order.updateMany({
-            where: { id: order.id, status: 'PAYMENT_FAILED' },
-            data: { status: 'PENDING' },
-          });
-        }
+      if (input.outcome === 'SUCCESS') {
+        // Trường hợp đơn đã EXPIRED / CANCELLED / RELEASED nhưng tiền đến muộn -> RECONCILIATION_REQUIRED
+        if (
+          this.isOrderExpired(order) ||
+          order.status === 'CANCELLED' ||
+          order.status === 'RELEASED'
+        ) {
+          const reconNote =
+            input.reason ??
+            `LATE_SUCCESS_ON_${order.status}:zp=${input.providerTransactionId ?? 'UNKNOWN'}`;
 
-        if (order.status === 'PENDING' || order.status === 'PAYMENT_FAILED') {
-          assertTransition('PENDING' as OrderStatus, 'PAID' as OrderStatus);
-          const updatedOrder = await tx.order.updateMany({
-            where: { id: order.id, status: 'PENDING' },
-            data: { status: 'PAID' },
+          const claimedRecon = await tx.payment.updateMany({
+            where: { id: payment.id, status: 'PENDING' },
+            data: {
+              status: 'RECONCILIATION_REQUIRED',
+              providerTransactionId: reconNote,
+            },
           });
 
-          if (updatedOrder.count === 1) {
-            const points = pointsForPaidOrder(order.total);
-            const claimedLoyalty = await tx.order.updateMany({
-              where: {
-                id: order.id,
-                status: 'PAID',
-                loyaltyAwarded: false,
-              },
-              data: { loyaltyAwarded: true },
+          if (claimedRecon.count !== 1) {
+            const latest = await tx.payment.findUnique({
+              where: { id: payment.id },
             });
-
-            if (claimedLoyalty.count === 1 && points > 0) {
-              await tx.user.update({
-                where: { id: order.userId },
-                data: { loyaltyPoints: { increment: points } },
-              });
-            }
+            return {
+              applied: false,
+              duplicate: true,
+              paymentStatus: latest?.status ?? 'RECONCILIATION_REQUIRED',
+            };
           }
-        }
-      } else if (order.status === 'PENDING') {
-        assertTransition(
-          'PENDING' as OrderStatus,
-          'PAYMENT_FAILED' as OrderStatus,
-        );
-        await tx.order.updateMany({
-          where: { id: order.id, status: 'PENDING' },
-          data: { status: 'PAYMENT_FAILED' },
-        });
-      }
-    });
 
-    return { RspCode: '00', Message: 'Confirm Success' };
+          return {
+            applied: true,
+            duplicate: false,
+            paymentStatus: 'RECONCILIATION_REQUIRED',
+            orderStatus: order.status,
+          };
+        }
+
+        // Gọi helper kho của Phát và đọc kết quả thật
+        const consumeResult = await consumeReservation(tx, order.id);
+        const outcomeStatus =
+          typeof consumeResult === 'string'
+            ? consumeResult
+            : (consumeResult as any)?.status ?? 'CONSUMED';
+
+        if (
+          outcomeStatus === 'EXPIRED' ||
+          outcomeStatus === 'RELEASED' ||
+          outcomeStatus === 'CANCELLED'
+        ) {
+          const reconNote = `RESERVATION_${outcomeStatus}:zp=${input.providerTransactionId ?? 'UNKNOWN'}`;
+          await tx.payment.updateMany({
+            where: { id: payment.id, status: 'PENDING' },
+            data: {
+              status: 'RECONCILIATION_REQUIRED',
+              providerTransactionId: reconNote,
+            },
+          });
+          return {
+            applied: true,
+            duplicate: false,
+            paymentStatus: 'RECONCILIATION_REQUIRED',
+          };
+        }
+
+        const claimedSuccess = await tx.payment.updateMany({
+          where: { id: payment.id, status: 'PENDING' },
+          data: {
+            status: 'SUCCESS',
+            providerTransactionId: input.providerTransactionId ?? null,
+            paidAt: new Date(),
+          },
+        });
+
+        if (claimedSuccess.count !== 1) {
+          const latest = await tx.payment.findUnique({
+            where: { id: payment.id },
+          });
+          return {
+            applied: false,
+            duplicate: true,
+            paymentStatus: latest?.status ?? 'SUCCESS',
+          };
+        }
+
+        // Cộng điểm Loyalty đúng 1 lần duy nhất
+        const points = pointsForPaidOrder(order.total);
+        const claimedLoyalty = await tx.order.updateMany({
+          where: {
+            id: order.id,
+            loyaltyAwarded: false,
+          },
+          data: { loyaltyAwarded: true },
+        });
+
+        if (claimedLoyalty.count === 1 && points > 0) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: { loyaltyPoints: { increment: points } },
+          });
+        }
+
+        return {
+          applied: true,
+          duplicate: false,
+          paymentStatus: 'SUCCESS',
+          orderStatus: 'PAID',
+        };
+      }
+
+      // Failure / Cancel cuối đã xác minh -> giải phóng kho qua helper của Phát
+      const targetPaymentStatus =
+        input.outcome === 'CANCELLED' ? 'CANCELLED' : 'FAILED';
+
+      const claimedFailure = await tx.payment.updateMany({
+        where: { id: payment.id, status: 'PENDING' },
+        data: {
+          status: targetPaymentStatus,
+          providerTransactionId: input.providerTransactionId ?? null,
+        },
+      });
+
+      if (claimedFailure.count !== 1) {
+        const latest = await tx.payment.findUnique({
+          where: { id: payment.id },
+        });
+        return {
+          applied: false,
+          duplicate: true,
+          paymentStatus: latest?.status ?? targetPaymentStatus,
+        };
+      }
+
+      await releaseReservation(tx, order.id, 'PAYMENT_FAILED' as any);
+
+      return {
+        applied: true,
+        duplicate: false,
+        paymentStatus: targetPaymentStatus,
+        orderStatus: 'PAYMENT_FAILED',
+      };
+    });
   }
 
-  // --- VNPAY SANDBOX: 3. Truy vấn trạng thái đơn hàng cho chủ đơn ---
+  async listPendingZalopayAttempts(
+    limit = 10,
+  ): Promise<PendingZalopayAttempt[]> {
+    const rows = await this.db.payment.findMany({
+      where: {
+        provider: 'ZALOPAY',
+        status: 'PENDING',
+        transactionRef: { not: null },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: Math.max(1, Math.min(limit, 50)),
+    });
+
+    return rows
+      .filter((r) => typeof r.transactionRef === 'string' && r.userId !== null)
+      .map((r) => ({
+        paymentId: r.id,
+        orderId: r.orderId,
+        userId: r.userId!,
+        transactionRef: r.transactionRef!,
+        amount: r.amount,
+      }));
+  }
+
   async getOrderPaymentStatus(
     userId: number,
     orderId: number,

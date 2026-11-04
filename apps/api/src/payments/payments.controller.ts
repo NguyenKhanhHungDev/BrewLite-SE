@@ -1,16 +1,18 @@
-import {
+﻿import {
   Body,
   Controller,
   Get,
   Headers,
+  HttpCode,
   Param,
   Post,
   Query,
   Req,
+  Res,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { PaymentsService } from './payments.service.js';
 
@@ -18,53 +20,75 @@ import { PaymentsService } from './payments.service.js';
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  @Post()
+  @Post('zalopay/create')
   @UseGuards(JwtAuthGuard)
-  pay(
-    @Req() request: Request & { user?: { id: number } },
+  async createZalopayPayment(
+    @Req()
+    request: Request & {
+      user?: { id?: number; userId?: number; sub?: number };
+    },
     @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    if (!request.user || typeof request.user.id !== 'number') {
+    const userId =
+      request.user?.id ?? request.user?.userId ?? request.user?.sub;
+    if (typeof userId !== 'number') {
       throw new UnauthorizedException('JWT required');
     }
-    return this.paymentsService.pay(request.user.id, idempotencyKey, body);
+
+    const result = await this.paymentsService.createZalopayPayment(
+      userId,
+      idempotencyKey,
+      body,
+    );
+    res.status(result.httpStatus);
+    return result.body;
   }
 
-  @Post('vnpay/create')
-  @UseGuards(JwtAuthGuard)
-  createVnpayPayment(
-    @Req() request: Request & { user?: { id: number } },
-    @Body() body: unknown,
-  ) {
-    if (!request.user || typeof request.user.id !== 'number') {
-      throw new UnauthorizedException('JWT required');
-    }
-    const forwarded = request.headers['x-forwarded-for'];
-    const ip =
-      typeof forwarded === 'string'
-        ? forwarded.split(',')[0]!.trim()
-        : request.ip || '127.0.0.1';
-    return this.paymentsService.createVnpayPayment(request.user.id, body, ip);
-  }
-
-  @Get('vnpay/ipn')
-  handleVnpayIpn(@Query() query: Record<string, unknown>) {
-    return this.paymentsService.handleVnpayIpn(query);
+  @Post('zalopay/callback')
+  @HttpCode(200)
+  async handleZalopayCallback(@Body() body: unknown) {
+    return this.paymentsService.handleZalopayCallback(body);
   }
 
   @Get(':orderId/status')
   @UseGuards(JwtAuthGuard)
-  getOrderPaymentStatus(
-    @Req() request: Request & { user?: { id: number } },
+  async getOrderPaymentStatus(
+    @Req()
+    request: Request & {
+      user?: { id?: number; userId?: number; sub?: number };
+    },
     @Param('orderId') orderId: string,
   ) {
-    if (!request.user || typeof request.user.id !== 'number') {
+    const userId =
+      request.user?.id ?? request.user?.userId ?? request.user?.sub;
+    if (typeof userId !== 'number') {
       throw new UnauthorizedException('JWT required');
     }
-    return this.paymentsService.getOrderPaymentStatus(
-      request.user.id,
-      Number(orderId),
+    return this.paymentsService.getOrderPaymentStatus(userId, Number(orderId));
+  }
+
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  rejectLegacyMockPayment() {
+    return this.paymentsService.rejectDeprecatedPaymentEndpoint(
+      'POST /payments (mock)',
+    );
+  }
+
+  @Post('vnpay/create')
+  @UseGuards(JwtAuthGuard)
+  rejectLegacyVnpayCreate() {
+    return this.paymentsService.rejectDeprecatedPaymentEndpoint(
+      'POST /payments/vnpay/create',
+    );
+  }
+
+  @Get('vnpay/ipn')
+  rejectLegacyVnpayIpn(@Query() _query: Record<string, unknown>) {
+    return this.paymentsService.rejectDeprecatedPaymentEndpoint(
+      'GET /payments/vnpay/ipn',
     );
   }
 }

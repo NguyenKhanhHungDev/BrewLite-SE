@@ -1,11 +1,23 @@
-export type PaymentMethod = 'WALLET' | 'CARD';
+﻿export type PaymentMethod = 'WALLET' | 'CARD' | 'ZALOPAY' | 'VNPAY';
 export type SimulateResult = 'SUCCESS' | 'FAILURE';
-export type PaymentOrderStatus = 'PENDING' | 'PAID' | 'PAYMENT_FAILED';
-export type VnpayPaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
+
+export type PaymentOrderStatus =
+  | 'PENDING'
+  | 'PAID'
+  | 'PAYMENT_FAILED'
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+export type ZalopayPaymentStatus =
+  | 'PENDING'
+  | 'SUCCESS'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'RECONCILIATION_REQUIRED';
 
 export interface PaymentRequest {
   orderId: number;
-  method: PaymentMethod;
+  method: 'WALLET' | 'CARD';
   simulateResult: SimulateResult;
 }
 
@@ -21,30 +33,50 @@ export interface PayOnceInput {
   request: PaymentRequest;
 }
 
-export interface CreateVnpayPaymentRecordInput {
+export interface ClaimZalopayAttemptInput {
   userId: number;
   orderId: number;
-  transactionRef: string;
+  idempotencyKey: string;
+  requestHash: string;
 }
 
-export interface CreateVnpayPaymentRecordResult {
+export interface ClaimZalopayAttemptResult {
+  mode: 'NEW' | 'REPLAY';
   orderId: number;
   paymentId: number;
   amount: number;
   transactionRef: string;
+  status: string;
+  cachedPaymentUrl?: string | null;
 }
 
-export interface VnpayIpnProcessInput {
+export interface SaveZalopayPaymentUrlInput {
+  paymentId: number;
   transactionRef: string;
-  amountVnd: number;
-  responseCode: string;
-  transactionStatus: string;
-  providerTransactionId?: string;
+  paymentUrl: string;
 }
 
-export interface VnpayIpnResponse {
-  RspCode: string;
-  Message: string;
+export type ZalopayResolutionOutcome = 'SUCCESS' | 'FAILED' | 'CANCELLED';
+
+export interface ApplyZalopayResolutionInput {
+  transactionRef: string;
+  appId: number;
+  amountVnd: number;
+  providerTransactionId?: string | null;
+  outcome: ZalopayResolutionOutcome;
+  reason?: string;
+}
+
+export interface ApplyZalopayResolutionResult {
+  applied: boolean;
+  duplicate: boolean;
+  paymentStatus: ZalopayPaymentStatus | string;
+  orderStatus?: string;
+}
+
+export interface ZalopayCallbackResponse {
+  return_code: number;
+  return_message: string;
 }
 
 export interface OrderPaymentStatusResult {
@@ -60,13 +92,25 @@ export interface OrderPaymentStatusResult {
   } | null;
 }
 
+export interface PendingZalopayAttempt {
+  paymentId: number;
+  orderId: number;
+  userId: number;
+  transactionRef: string;
+  amount: number;
+}
+
 export interface PaymentOrdersStore {
-  payOnce(input: PayOnceInput): Promise<PaymentResult>;
-  createVnpayPayment?(
-    input: CreateVnpayPaymentRecordInput,
-  ): Promise<CreateVnpayPaymentRecordResult>;
-  processVnpayIpn?(input: VnpayIpnProcessInput): Promise<VnpayIpnResponse>;
-  getOrderPaymentStatus?(
+  payOnce?(input: PayOnceInput): Promise<PaymentResult>;
+  claimZalopayAttempt(
+    input: ClaimZalopayAttemptInput,
+  ): Promise<ClaimZalopayAttemptResult>;
+  saveZalopayPaymentUrl(input: SaveZalopayPaymentUrlInput): Promise<void>;
+  applyZalopayResolution(
+    input: ApplyZalopayResolutionInput,
+  ): Promise<ApplyZalopayResolutionResult>;
+  listPendingZalopayAttempts(limit?: number): Promise<PendingZalopayAttempt[]>;
+  getOrderPaymentStatus(
     userId: number,
     orderId: number,
   ): Promise<OrderPaymentStatusResult>;
