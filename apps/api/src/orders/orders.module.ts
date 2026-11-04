@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PaymentsModule } from '../payments/payments.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { LoyaltyModule } from '../loyalty/loyalty.module.js';
 import { ORDERS_STORE } from './orders.contract.js';
@@ -16,10 +17,14 @@ import { OrdersPrismaAdapter } from './orders.prisma-adapter.js';
 import { OrdersService } from './orders.service.js';
 
 @Module({
-  imports: [AuthModule, LoyaltyModule],
+  imports: [AuthModule, LoyaltyModule, PaymentsModule],
   // OrdersHistoryController (GET /orders/me) must come before OrdersController,
   // otherwise GET /orders/:id (ParseIntPipe) captures "me" and returns 400.
-  controllers: [OrdersHistoryController, OrdersController, AdminOrdersController],
+  controllers: [
+    OrdersHistoryController,
+    OrdersController,
+    AdminOrdersController,
+  ],
   providers: [
     OrdersService,
     OrdersExpirationService,

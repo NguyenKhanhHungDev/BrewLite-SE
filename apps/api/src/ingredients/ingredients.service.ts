@@ -65,6 +65,24 @@ export class IngredientsService implements OnModuleDestroy {
   async update(id: number, input: UpdateIngredientDto) {
     if (input.name === undefined && input.minStock === undefined)
       throw new BadRequestException('Chọn tên hoặc ngưỡng tồn cần sửa.');
+    if (input.name !== undefined) {
+      const current = await this.prisma.ingredient.findUnique({
+        where: { id },
+      });
+      if (!current) throw new NotFoundException('Không tìm thấy nguyên liệu.');
+      if (
+        ['Trân châu', 'Kem sữa'].some(
+          (name) =>
+            name.toLocaleLowerCase('vi') ===
+            current.name.toLocaleLowerCase('vi'),
+        ) &&
+        input.name.trim() !== current.name
+      ) {
+        throw new BadRequestException(
+          'Không thể đổi tên nguyên liệu đang cấu hình cho topping.',
+        );
+      }
+    }
     try {
       return response(
         await this.prisma.ingredient.update({

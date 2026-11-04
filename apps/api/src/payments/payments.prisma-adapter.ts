@@ -1,4 +1,5 @@
 ﻿import 'dotenv/config';
+import { ZalopayService } from './zalopay.service.js';
 import {
   BadRequestException,
   ConflictException,
@@ -39,7 +40,6 @@ export class PaymentsPrismaAdapter
   implements PaymentOrdersStore, OnModuleDestroy
 {
   private readonly db: PrismaClient;
-  private readonly paymentUrlCache = new Map<number, string>();
 
   constructor() {
     const url = process.env.DATABASE_URL;
@@ -54,11 +54,8 @@ export class PaymentsPrismaAdapter
     paymentId: number,
     now = new Date(),
   ): string {
-    const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-    const yy = String(vnTime.getUTCFullYear()).slice(-2);
-    const mm = String(vnTime.getUTCMonth() + 1).padStart(2, '0');
-    const dd = String(vnTime.getUTCDate()).padStart(2, '0');
-    return `${yy}${mm}${dd}_BREW_${orderId}_${paymentId}`;
+    // Public sandbox app IDs are shared by independent local databases.
+    return new ZalopayService().buildAppTransId(orderId, paymentId, now);
   }
 
   private isOrderExpired(order: {
@@ -79,6 +76,8 @@ export class PaymentsPrismaAdapter
 
     try {
       return await this.db.$transaction(async (tx: any) => {
+        // Serialize payment creation and resolution with inventory transitions.
+        await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
         const existingByKey = await tx.payment.findUnique({
           where: {
             userId_idempotencyKey: { userId, idempotencyKey },
@@ -101,18 +100,19 @@ export class PaymentsPrismaAdapter
             );
           }
 
-          return {
-            mode: 'REPLAY' as const,
-            orderId: existingByKey.orderId,
-            paymentId: existingByKey.id,
-            amount: existingByKey.amount,
-            transactionRef:
-              existingByKey.transactionRef ??
-              this.buildAppTransId(existingByKey.orderId, existingByKey.id),
-            status: existingByKey.status,
-            cachedPaymentUrl:
-              this.paymentUrlCache.get(existingByKey.id) ?? null,
-          };
+          if (existingByKey.creationStatus !== 'REJECTED')
+            return {
+              mode: 'REPLAY' as const,
+              orderId: existingByKey.orderId,
+              paymentId: existingByKey.id,
+              amount: existingByKey.amount,
+              transactionRef:
+                existingByKey.transactionRef ??
+                this.buildAppTransId(existingByKey.orderId, existingByKey.id),
+              status: existingByKey.status,
+              cachedPaymentUrl: existingByKey.paymentUrl ?? null,
+              createdAt: existingByKey.createdAt,
+            };
         }
 
         const order = await tx.order.findUnique({
@@ -128,7 +128,7 @@ export class PaymentsPrismaAdapter
         if (this.isOrderExpired(order)) {
           throw new ConflictException('Order has expired and cannot be paid');
         }
-        if (order.status !== 'PENDING' && order.status !== 'PAYMENT_FAILED') {
+        if (order.status !== 'PENDING') {
           throw new ConflictException(
             `Order in status ${order.status} cannot initiate payment`,
           );
@@ -154,6 +154,28 @@ export class PaymentsPrismaAdapter
           );
         }
 
+        if (existingByKey) {
+          const ref = this.buildAppTransId(order.id, existingByKey.id);
+          const retried = await tx.payment.update({
+            where: { id: existingByKey.id },
+            data: {
+              creationStatus: 'CREATING',
+              transactionRef: ref,
+              createdAt: new Date(),
+              lastQueriedAt: null,
+            },
+          });
+          return {
+            mode: 'NEW' as const,
+            orderId,
+            paymentId: retried.id,
+            amount: retried.amount,
+            transactionRef: ref,
+            status: retried.status,
+            cachedPaymentUrl: null,
+            createdAt: retried.createdAt,
+          };
+        }
         const created = await tx.payment.create({
           data: {
             orderId: order.id,
@@ -164,6 +186,7 @@ export class PaymentsPrismaAdapter
             requestHash,
             amount: order.total,
             status: 'PENDING',
+            creationStatus: 'CREATING',
           },
         });
 
@@ -182,6 +205,7 @@ export class PaymentsPrismaAdapter
           transactionRef: appTransId,
           status: updated.status,
           cachedPaymentUrl: null,
+          createdAt: updated.createdAt,
         };
       });
     } catch (error) {
@@ -210,7 +234,7 @@ export class PaymentsPrismaAdapter
               saved.transactionRef ??
               this.buildAppTransId(saved.orderId, saved.id),
             status: saved.status,
-            cachedPaymentUrl: this.paymentUrlCache.get(saved.id) ?? null,
+            cachedPaymentUrl: saved.paymentUrl ?? null,
           };
         }
       }
@@ -221,16 +245,27 @@ export class PaymentsPrismaAdapter
   async saveZalopayPaymentUrl(
     input: SaveZalopayPaymentUrlInput,
   ): Promise<void> {
-    this.paymentUrlCache.set(input.paymentId, input.paymentUrl);
-    // Chỉ update nếu trạng thái vẫn là PENDING để không bao giờ ghi đè SUCCESS về PENDING nếu callback đến trước
+    // Persist the URL even if a callback has already completed; never change status.
     await this.db.payment.updateMany({
       where: {
         id: input.paymentId,
-        status: 'PENDING',
-      },
-      data: {
         transactionRef: input.transactionRef,
       },
+      data: {
+        paymentUrl: input.paymentUrl,
+        creationStatus: 'READY',
+      },
+    });
+  }
+
+  async markZalopayCreation(
+    paymentId: number,
+    transactionRef: string,
+    status: 'REJECTED' | 'UNKNOWN',
+  ): Promise<void> {
+    await this.db.payment.updateMany({
+      where: { id: paymentId, transactionRef, status: 'PENDING' },
+      data: { creationStatus: status },
     });
   }
 
@@ -238,6 +273,11 @@ export class PaymentsPrismaAdapter
     input: ApplyZalopayResolutionInput,
   ): Promise<ApplyZalopayResolutionResult> {
     return this.db.$transaction(async (tx: any) => {
+      const reference = await tx.payment.findUnique({
+        where: { transactionRef: input.transactionRef },
+      });
+      if (!reference) throw new NotFoundException('Payment not found');
+      await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${reference.orderId} FOR UPDATE`;
       const payment = await tx.payment.findUnique({
         where: { transactionRef: input.transactionRef },
       });
@@ -254,6 +294,23 @@ export class PaymentsPrismaAdapter
         );
       }
 
+      if (
+        input.outcome === 'SUCCESS' &&
+        ['FAILED', 'CANCELLED'].includes(payment.status)
+      ) {
+        const changed = await tx.payment.updateMany({
+          where: { id: payment.id, status: payment.status },
+          data: {
+            status: 'RECONCILIATION_REQUIRED',
+            providerTransactionId: input.providerTransactionId ?? null,
+          },
+        });
+        return {
+          applied: changed.count === 1,
+          duplicate: changed.count !== 1,
+          paymentStatus: 'RECONCILIATION_REQUIRED',
+        };
+      }
       if (payment.status !== 'PENDING') {
         return {
           applied: false,
@@ -273,9 +330,10 @@ export class PaymentsPrismaAdapter
       if (input.outcome === 'SUCCESS') {
         // Trường hợp đơn đã EXPIRED / CANCELLED / RELEASED nhưng tiền đến muộn -> RECONCILIATION_REQUIRED
         if (
-          this.isOrderExpired(order) ||
+          (this.isOrderExpired(order) && order.status !== 'PENDING') ||
           order.status === 'CANCELLED' ||
-          order.status === 'RELEASED'
+          order.status === 'RELEASED' ||
+          order.status === 'PAYMENT_FAILED'
         ) {
           const reconNote =
             input.reason ??
@@ -309,11 +367,11 @@ export class PaymentsPrismaAdapter
         }
 
         // Gọi helper kho của Phát và đọc kết quả thật
-        const consumeResult = await consumeReservation(tx, order.id);
+        const consumeResult = await consumeReservation(tx, order.id, true);
         const outcomeStatus =
           typeof consumeResult === 'string'
             ? consumeResult
-            : (consumeResult as any)?.status ?? 'CONSUMED';
+            : ((consumeResult as any)?.status ?? 'CONSUMED');
 
         if (
           outcomeStatus === 'EXPIRED' ||
@@ -422,11 +480,24 @@ export class PaymentsPrismaAdapter
         provider: 'ZALOPAY',
         status: 'PENDING',
         transactionRef: { not: null },
+        creationStatus: { not: 'REJECTED' },
+        OR: [
+          { creationStatus: { not: 'CREATING' } },
+          { createdAt: { lt: new Date(Date.now() - 60_000) } },
+        ],
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [
+        { lastQueriedAt: { sort: 'asc', nulls: 'first' } },
+        { id: 'asc' },
+      ],
       take: Math.max(1, Math.min(limit, 50)),
     });
 
+    if (rows.length)
+      await this.db.payment.updateMany({
+        where: { id: { in: rows.map((row) => row.id) } },
+        data: { lastQueriedAt: new Date() },
+      });
     return rows
       .filter((r) => typeof r.transactionRef === 'string' && r.userId !== null)
       .map((r) => ({
@@ -435,6 +506,7 @@ export class PaymentsPrismaAdapter
         userId: r.userId!,
         transactionRef: r.transactionRef!,
         amount: r.amount,
+        createdAt: r.createdAt,
       }));
   }
 
@@ -470,6 +542,8 @@ export class PaymentsPrismaAdapter
             amount: latestPayment.amount,
             status: latestPayment.status,
             paidAt: latestPayment.paidAt,
+            createdAt: latestPayment.createdAt,
+            creationStatus: latestPayment.creationStatus,
           }
         : null,
     };

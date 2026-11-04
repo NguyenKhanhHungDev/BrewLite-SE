@@ -33,6 +33,7 @@ describe('Recipe-backed ProductsService', () => {
         price: 35000,
         imageUrl: '/images/products/ca-phe-sua.jpg',
         stock: 8,
+        stockBySize: { S: 10, M: 8, L: 6 },
       },
     ]);
   });

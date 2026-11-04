@@ -11,10 +11,9 @@ import {
 import {
   PAYMENT_ORDERS_STORE,
   type PaymentOrdersStore,
-  type PaymentRequest,
   type ZalopayCallbackResponse,
 } from './payments.contract.js';
-import { ZalopayService } from './zalopay.service.js';
+import { ZalopayCreationRejected, ZalopayService } from './zalopay.service.js';
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -60,15 +59,6 @@ export function hashZalopayCreateRequest(
     provider: 'ZALOPAY',
     userId,
     orderId,
-  });
-  return createHash('sha256').update(canonical).digest('hex');
-}
-
-export function hashPaymentRequest(dto: PaymentRequest): string {
-  const canonical = JSON.stringify({
-    orderId: dto.orderId,
-    method: dto.method,
-    simulateResult: dto.simulateResult,
   });
   return createHash('sha256').update(canonical).digest('hex');
 }
@@ -157,14 +147,31 @@ export class PaymentsService {
       );
     }
 
+    if (claimed.mode === 'REPLAY') {
+      throw new ConflictException(
+        'Payment creation is in progress or its outcome is unknown; check payment status before retrying',
+      );
+    }
+
     // Gọi HTTP ra ZaloPay Sandbox bên ngoài Prisma transaction
-    const gatewayRes = await this.zalopay.createSandboxOrder({
-      appTransId: claimed.transactionRef,
-      appUser: `user_${normalizedUserId}`,
-      amount: claimed.amount,
-      orderId: claimed.orderId,
-      description: `Thanh toan don hang BrewLite #${claimed.orderId}`,
-    });
+    let gatewayRes: Awaited<ReturnType<ZalopayService['createSandboxOrder']>>;
+    try {
+      gatewayRes = await this.zalopay.createSandboxOrder({
+        appTime: claimed.createdAt?.getTime(),
+        appTransId: claimed.transactionRef,
+        appUser: `user_${normalizedUserId}`,
+        amount: claimed.amount,
+        orderId: claimed.orderId,
+        description: `Thanh toan don hang BrewLite #${claimed.orderId}`,
+      });
+    } catch (error) {
+      await this.ordersStore.markZalopayCreation(
+        claimed.paymentId,
+        claimed.transactionRef,
+        error instanceof ZalopayCreationRejected ? 'REJECTED' : 'UNKNOWN',
+      );
+      throw error;
+    }
 
     await this.ordersStore.saveZalopayPaymentUrl({
       paymentId: claimed.paymentId,
@@ -186,7 +193,7 @@ export class PaymentsService {
     }
 
     return {
-      httpStatus: claimed.mode === 'REPLAY' ? 200 : 201,
+      httpStatus: 201,
       body: {
         orderId: claimed.orderId,
         paymentId: claimed.paymentId,
@@ -233,7 +240,10 @@ export class PaymentsService {
       zp_trans_id?: unknown;
     };
     try {
-      parsed = JSON.parse(rawData);
+      const decoded: unknown = JSON.parse(rawData);
+      if (!isObject(decoded))
+        return { return_code: -1, return_message: 'invalid callback data' };
+      parsed = decoded;
     } catch {
       return { return_code: -1, return_message: 'invalid json data' };
     }
@@ -244,7 +254,8 @@ export class PaymentsService {
       typeof parsed.app_trans_id === 'string' ? parsed.app_trans_id.trim() : '';
     const amountVnd = Number(parsed.amount);
     const providerTransactionId =
-      parsed.zp_trans_id !== undefined && parsed.zp_trans_id !== null
+      typeof parsed.zp_trans_id === 'string' ||
+      typeof parsed.zp_trans_id === 'number'
         ? String(parsed.zp_trans_id)
         : null;
 
@@ -315,12 +326,17 @@ export class PaymentsService {
       latest &&
       latest.provider === 'ZALOPAY' &&
       latest.status === 'PENDING' &&
+      latest.creationStatus !== 'REJECTED' &&
+      (latest.creationStatus !== 'CREATING' ||
+        (latest.createdAt &&
+          Date.now() - latest.createdAt.getTime() >= 60_000)) &&
       latest.transactionRef &&
       !this.inFlightQueries.has(latest.transactionRef)
     ) {
       const updated = await this.queryAndReconcileSingleAttempt(
         latest.transactionRef,
         latest.amount,
+        latest.createdAt,
       );
       if (updated) {
         return this.ordersStore.getOrderPaymentStatus(
@@ -333,7 +349,7 @@ export class PaymentsService {
     return currentStatus;
   }
 
-  async reconcilePendingZalopayBatch(limit = 10): Promise<number> {
+  async reconcilePendingZalopayBatch(limit = 50): Promise<number> {
     const pendingList =
       await this.ordersStore.listPendingZalopayAttempts(limit);
     let resolvedCount = 0;
@@ -343,6 +359,7 @@ export class PaymentsService {
       const resolved = await this.queryAndReconcileSingleAttempt(
         item.transactionRef,
         item.amount,
+        item.createdAt,
       );
       if (resolved) resolvedCount += 1;
     }
@@ -353,6 +370,7 @@ export class PaymentsService {
   private async queryAndReconcileSingleAttempt(
     transactionRef: string,
     expectedAmount: number,
+    createdAt?: Date,
   ): Promise<boolean> {
     this.inFlightQueries.add(transactionRef);
     try {
@@ -374,7 +392,13 @@ export class PaymentsService {
       }
 
       // return_code = 2 và không còn is_processing: Giao dịch thất bại cuối
-      if (queryRes.return_code === 2 && !queryRes.is_processing) {
+      if (
+        queryRes.is_processing === false &&
+        (queryRes.return_code === 2 ||
+          (queryRes.return_code === 3 &&
+            createdAt &&
+            Date.now() - createdAt.getTime() > 15 * 60_000))
+      ) {
         await this.ordersStore.applyZalopayResolution({
           transactionRef,
           appId: config.appId,
@@ -385,7 +409,7 @@ export class PaymentsService {
         return true;
       }
 
-      // return_code = 3 (đang xử lý / chưa tìm được): giữ nguyên PENDING, không tự đánh FAILED
+      // Unpaid within the gateway window, still processing, and ambiguous errors remain pending.
       return false;
     } catch {
       return false;

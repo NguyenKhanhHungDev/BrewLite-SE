@@ -53,3 +53,11 @@ export function money(value: number): string {
 export function optionText(size: Size, toppings: Topping[]): string {
   return `Size ${size} · ${toppings.length ? toppings.map((item) => toppingNames[item]).join(", ") : "Không topping"}`;
 }
+
+export function sizePrice(basePrice: number, size: Size): number | null {
+  try {
+    return unitPrice(basePrice, size, []);
+  } catch {
+    return null;
+  }
+}

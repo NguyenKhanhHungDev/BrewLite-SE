@@ -1,37 +1,5 @@
-﻿export type PaymentMethod = 'WALLET' | 'CARD' | 'ZALOPAY' | 'VNPAY';
-export type SimulateResult = 'SUCCESS' | 'FAILURE';
-
-export type PaymentOrderStatus =
-  | 'PENDING'
-  | 'PAID'
-  | 'PAYMENT_FAILED'
-  | 'CANCELLED'
-  | 'EXPIRED';
-
 export type ZalopayPaymentStatus =
-  | 'PENDING'
-  | 'SUCCESS'
-  | 'FAILED'
-  | 'CANCELLED'
-  | 'RECONCILIATION_REQUIRED';
-
-export interface PaymentRequest {
-  orderId: number;
-  method: 'WALLET' | 'CARD';
-  simulateResult: SimulateResult;
-}
-
-export interface PaymentResult {
-  orderId: number;
-  status: 'PAID' | 'PAYMENT_FAILED';
-}
-
-export interface PayOnceInput {
-  userId: number;
-  idempotencyKey: string;
-  requestHash: string;
-  request: PaymentRequest;
-}
+  'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'RECONCILIATION_REQUIRED';
 
 export interface ClaimZalopayAttemptInput {
   userId: number;
@@ -48,6 +16,7 @@ export interface ClaimZalopayAttemptResult {
   transactionRef: string;
   status: string;
   cachedPaymentUrl?: string | null;
+  createdAt?: Date;
 }
 
 export interface SaveZalopayPaymentUrlInput {
@@ -70,7 +39,7 @@ export interface ApplyZalopayResolutionInput {
 export interface ApplyZalopayResolutionResult {
   applied: boolean;
   duplicate: boolean;
-  paymentStatus: ZalopayPaymentStatus | string;
+  paymentStatus: string;
   orderStatus?: string;
 }
 
@@ -89,10 +58,13 @@ export interface OrderPaymentStatusResult {
     amount: number;
     status: string;
     paidAt: Date | null;
+    createdAt?: Date;
+    creationStatus?: string;
   } | null;
 }
 
 export interface PendingZalopayAttempt {
+  createdAt?: Date;
   paymentId: number;
   orderId: number;
   userId: number;
@@ -101,7 +73,11 @@ export interface PendingZalopayAttempt {
 }
 
 export interface PaymentOrdersStore {
-  payOnce?(input: PayOnceInput): Promise<PaymentResult>;
+  markZalopayCreation(
+    paymentId: number,
+    transactionRef: string,
+    status: 'REJECTED' | 'UNKNOWN',
+  ): Promise<void>;
   claimZalopayAttempt(
     input: ClaimZalopayAttemptInput,
   ): Promise<ClaimZalopayAttemptResult>;

@@ -4,6 +4,7 @@ export type Product = {
   price: number;
   imageUrl: string;
   stock: number;
+  stockBySize?: Record<"S" | "M" | "L", number>;
 };
 
 export function parseProducts(value: unknown): Product[] {
@@ -33,6 +34,17 @@ export function parseProducts(value: unknown): Product[] {
       item.stock < 0
     )
       throw new Error("Invalid product fields");
+    const sizes = "stockBySize" in item ? item.stockBySize : undefined;
+    if (
+      sizes !== undefined &&
+      (typeof sizes !== "object" ||
+        sizes === null ||
+        !["S", "M", "L"].every((size) => {
+          const n = (sizes as Record<string, unknown>)[size];
+          return typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+        }))
+    )
+      throw new Error("Invalid size stock");
     ids.add(item.id);
     return {
       id: item.id,
@@ -40,6 +52,9 @@ export function parseProducts(value: unknown): Product[] {
       price: item.price,
       imageUrl: item.imageUrl,
       stock: item.stock,
+      ...(sizes
+        ? { stockBySize: sizes as Record<"S" | "M" | "L", number> }
+        : {}),
     };
   });
 }

@@ -65,3 +65,13 @@ describe('ZalopayService — Bước 4: Chữ ký HMAC-SHA256 & Cấu hình (APP
     );
   });
 });
+
+it('uses distinct transaction IDs for independent databases sharing the public sandbox app', () => {
+  const gateway = new ZalopayService();
+  const date = new Date('2026-11-04T00:00:00Z');
+  const first = gateway.buildAppTransId(1, 1, date);
+  const second = gateway.buildAppTransId(1, 1, date);
+  expect(first).toMatch(/^261104_BREW_[a-f0-9]{24}$/);
+  expect(first.length).toBeLessThanOrEqual(40);
+  expect(second).not.toBe(first);
+});

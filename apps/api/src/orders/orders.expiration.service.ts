@@ -1,5 +1,11 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Inject } from '@nestjs/common';
+import { PaymentsService } from '../payments/payments.service.js';
 import { ORDERS_STORE, type OrdersStore } from './orders.contract.js';
 
 @Injectable()
@@ -8,7 +14,10 @@ export class OrdersExpirationService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private running = false;
 
-  constructor(@Inject(ORDERS_STORE) private readonly store: OrdersStore) {}
+  constructor(
+    @Inject(ORDERS_STORE) private readonly store: OrdersStore,
+    private readonly payments: PaymentsService,
+  ) {}
 
   onModuleInit() {
     void this.expireBatch();
@@ -24,13 +33,17 @@ export class OrdersExpirationService implements OnModuleInit, OnModuleDestroy {
     if (this.running) return 0;
     this.running = true;
     try {
+      await this.payments.reconcilePendingZalopayBatch(50);
       const count = await this.store.expirePendingOrders(50);
       if (count > 0) {
         this.logger.log(`Released reservations for ${count} expired order(s)`);
       }
       return count;
     } catch (error) {
-      this.logger.error('Could not expire pending orders', error instanceof Error ? error.stack : String(error));
+      this.logger.error(
+        'Could not expire pending orders',
+        error instanceof Error ? error.stack : String(error),
+      );
       return 0;
     } finally {
       this.running = false;

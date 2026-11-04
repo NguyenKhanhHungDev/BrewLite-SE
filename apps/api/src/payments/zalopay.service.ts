@@ -1,5 +1,5 @@
 ﻿import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export interface ZalopayConfig {
   appId: number;
@@ -47,6 +47,12 @@ const INVALID_PLACEHOLDERS = new Set([
   'YOUR_SECRET_KEY',
 ]);
 
+export class ZalopayCreationRejected extends ServiceUnavailableException {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 @Injectable()
 export class ZalopayService {
   private readonly httpTimeoutMs = 8000;
@@ -90,15 +96,15 @@ export class ZalopayService {
   }
 
   buildAppTransId(
-    orderId: number,
-    paymentId: number,
+    _orderId: number,
+    _paymentId: number,
     now: Date = new Date(),
   ): string {
     const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
     const yy = String(vnTime.getUTCFullYear()).slice(-2);
     const mm = String(vnTime.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(vnTime.getUTCDate()).padStart(2, '0');
-    return `${yy}${mm}${dd}_BREW_${orderId}_${paymentId}`;
+    return `${yy}${mm}${dd}_BREW_${randomBytes(12).toString('hex')}`;
   }
 
   signCreateOrderPayload(
@@ -168,7 +174,10 @@ export class ZalopayService {
 
   async createSandboxOrder(
     params: ZalopayCreateOrderParams,
-  ): Promise<{ paymentUrl: string; rawResponse: ZalopayCreateGatewayResponse }> {
+  ): Promise<{
+    paymentUrl: string;
+    rawResponse: ZalopayCreateGatewayResponse;
+  }> {
     const config = this.getValidatedConfig();
     const appTime = params.appTime ?? Date.now();
 
@@ -246,14 +255,21 @@ export class ZalopayService {
       );
     }
 
-    if (data.return_code !== 1 || !data.order_url) {
-      throw new ServiceUnavailableException(
+    if (data.return_code === 2) {
+      throw new ZalopayCreationRejected(
         `ZaloPay rejected order creation (${data.return_code}): ${
           data.sub_return_message || data.return_message || 'Unknown error'
         }`,
       );
     }
 
+    if (
+      data.return_code !== 1 ||
+      typeof data.order_url !== 'string' ||
+      !data.order_url
+    ) {
+      throw new ServiceUnavailableException('Unknown ZaloPay creation result');
+    }
     return {
       paymentUrl: data.order_url,
       rawResponse: data,

@@ -18,11 +18,11 @@ model Product {
 }
 
 model User {
-  id            Int      @id @default(autoincrement())
-  email         String   @unique
+  id            Int     @id @default(autoincrement())
+  email         String  @unique
   passwordHash  String
-  role          String   @default("CUSTOMER")
-  loyaltyPoints Int      @default(0)
+  role          String  @default("CUSTOMER")
+  loyaltyPoints Int     @default(0)
   orders        Order[]
 }
 
@@ -31,7 +31,7 @@ model Order {
   userId          Int
   user            User              @relation(fields: [userId], references: [id])
   status          String            @default("PENDING")
-  total           Int               // Tổng tiền thực trả sau giảm giá (VND)
+  total           Int // Tổng tiền thực trả sau giảm giá (VND)
   discount        Int               @default(0)
   promoCode       String?
   loyaltyAwarded  Boolean           @default(false)
@@ -69,6 +69,9 @@ model Payment {
   userId                Int?
   provider              String    @default("VNPAY")
   transactionRef        String?   @unique
+  creationStatus        String    @default("UNKNOWN")
+  lastQueriedAt         DateTime?
+  paymentUrl            String?
   providerTransactionId String?
   idempotencyKey        String?
   requestHash           String?
@@ -80,16 +83,17 @@ model Payment {
 
   @@unique([userId, idempotencyKey])
 }
+
 model Ingredient {
-  id          Int                @id @default(autoincrement())
-  name        String             @unique
-  unit        String
-  stock       Int                @default(0)
-  reserved    Int                @default(0)
-  minStock    Int                @default(0)
-  version     Int                @default(0)
-  recipes     RecipeIngredient[]
-  orderUses   OrderIngredient[]
+  id        Int                @id @default(autoincrement())
+  name      String             @unique
+  unit      String
+  stock     Int                @default(0)
+  reserved  Int                @default(0)
+  minStock  Int                @default(0)
+  version   Int                @default(0)
+  recipes   RecipeIngredient[]
+  orderUses OrderIngredient[]
 }
 
 model Recipe {
@@ -121,4 +125,9 @@ model OrderIngredient {
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
 
   @@id([orderId, ingredientId])
+}
+
+model SeedRun {
+  id            String   @id
+  initializedAt DateTime @default(now())
 }

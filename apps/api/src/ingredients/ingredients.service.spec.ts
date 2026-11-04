@@ -63,3 +63,27 @@ describe('Ingredients request validation', () => {
     },
   );
 });
+
+describe('Protected topping ingredients', () => {
+  it.each(['Trân châu', 'Kem sữa'])(
+    'rejects renaming %s without updating the row',
+    async (name) => {
+      const { IngredientsService } = await import('./ingredients.service.js');
+      const { vi } = await import('vitest');
+      const update = vi.fn();
+      const service = Object.create(IngredientsService.prototype);
+      Object.defineProperty(service, 'prisma', {
+        value: {
+          ingredient: {
+            findUnique: vi.fn().mockResolvedValue({ id: 1, name }),
+            update,
+          },
+        },
+      });
+      await expect(service.update(1, { name: 'Tên mới' })).rejects.toThrow(
+        'topping',
+      );
+      expect(update).not.toHaveBeenCalled();
+    },
+  );
+});
