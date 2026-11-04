@@ -6,9 +6,6 @@ payload, or edit the Payments adapter. The provider-specific part (ZaloPay
 callback/query) decides what counts as "success" or "failure"; this module only
 changes stock/reservation/Order status once that decision is made.
 
-> Ghi chú lịch sử: bản đầu của tài liệu viết cho luồng IPN VNPAY. Contract kho
-> không đổi khi đổi provider; chỉ thuật ngữ ở phần tích hợp được cập nhật.
-
 ## Transaction helpers
 
 Import from `src/orders/orders.inventory.ts`:

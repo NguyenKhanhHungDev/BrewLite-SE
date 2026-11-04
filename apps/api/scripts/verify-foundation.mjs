@@ -40,7 +40,7 @@ try {
     INSERT INTO "Product" (id,name,price,"imageUrl",stock) VALUES (100,'Legacy',10000,'/legacy.jpg',5);
     INSERT INTO "Order" (id,"userId",status,total) VALUES (100,100,'PAID',10000);
     INSERT INTO "OrderItem" ("orderId","productId",quantity,toppings,"unitPrice",subtotal) VALUES (100,100,1,'[]',10000,10000);
-    INSERT INTO "Payment" ("orderId",amount,"transactionRef",status) VALUES (100,10000,'legacy-vnpay','SUCCESS');`);
+    INSERT INTO "Payment" ("orderId",amount,"transactionRef",status) VALUES (100,10000,'legacy-payment','SUCCESS');`);
   run(
     'node_modules/prisma/build/index.js',
     'db',
@@ -74,7 +74,7 @@ try {
   assert.equal(
     (await query(`SELECT "transactionRef" FROM "Payment" WHERE "orderId"=100`))
       .rows[0].transactionRef,
-    'legacy-vnpay',
+    'legacy-payment',
   );
   assert.equal(
     (await query(`SELECT "productId" FROM "OrderItem" WHERE "orderId"=100`))

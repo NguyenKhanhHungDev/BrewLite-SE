@@ -1,4 +1,4 @@
-﻿import {
+import {
   Body,
   Controller,
   Get,
@@ -6,7 +6,6 @@
   HttpCode,
   Param,
   Post,
-  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -74,21 +73,6 @@ export class PaymentsController {
   rejectLegacyMockPayment() {
     return this.paymentsService.rejectDeprecatedPaymentEndpoint(
       'POST /payments (mock)',
-    );
-  }
-
-  @Post('vnpay/create')
-  @UseGuards(JwtAuthGuard)
-  rejectLegacyVnpayCreate() {
-    return this.paymentsService.rejectDeprecatedPaymentEndpoint(
-      'POST /payments/vnpay/create',
-    );
-  }
-
-  @Get('vnpay/ipn')
-  rejectLegacyVnpayIpn(@Query() _query: Record<string, unknown>) {
-    return this.paymentsService.rejectDeprecatedPaymentEndpoint(
-      'GET /payments/vnpay/ipn',
     );
   }
 }

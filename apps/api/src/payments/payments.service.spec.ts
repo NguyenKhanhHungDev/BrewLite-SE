@@ -1,4 +1,4 @@
-﻿import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BadRequestException,
   ConflictException,
@@ -70,14 +70,11 @@ describe('ZalopayService & PaymentsService (05_THANG Spec)', () => {
     expect(() => zp.getValidatedConfig()).toThrow(ServiceUnavailableException);
   });
 
-  it('returns 410 Gone for deprecated mock and VNPAY endpoints', async () => {
+  it('returns 410 Gone for deprecated mock payment endpoint', async () => {
     const mockStore = {} as PaymentOrdersStore;
     const service = new PaymentsService(mockStore, new ZalopayService());
 
     await expect(service.pay(1, 'key-1', {})).rejects.toThrow(GoneException);
-    expect(() =>
-      service.rejectDeprecatedPaymentEndpoint('POST /payments/vnpay/create'),
-    ).toThrow(GoneException);
   });
 
   it('returns 201 on first create and 200 on idempotent replay with same URL', async () => {

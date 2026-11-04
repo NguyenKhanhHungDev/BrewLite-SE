@@ -3,7 +3,7 @@
 Cập nhật 03/11/2026, nhánh `codex/fix-ingredient-recipe-migration`.
 Nguồn phân công: `02_HUNG_LINUX_RECIPES_TICH_HOP.md` do Hưng cung cấp.
 Trạng thái: đã triển khai và kiểm chứng API local với DB test riêng; chưa commit/push,
-chưa nghiệm thu giao diện hoặc toàn bộ luồng VNPAY.
+chưa nghiệm thu giao diện hoặc toàn bộ luồng thanh toán sandbox.
 
 ## Code và hợp đồng
 
@@ -54,8 +54,8 @@ API test và PostgreSQL tạm đã dừng; không áp dụng migration/seed vào
 ## Phần còn lại theo chủ module
 
 - Huy: Ingredients API, Admin UI, rewrite `/ingredients/:path*`, `/recipes/:path*`,
-  `/api/admin/orders`; kết nối checkout VNPAY và `/payment/result`.
-- Thắng + Phát: nối Payment/IPN với consume/release trong cùng transaction; kiểm thử
+  `/api/admin/orders`; kết nối checkout thanh toán sandbox và `/payment/result`.
+- Thắng + Phát: nối Payment/callback với consume/release trong cùng transaction; kiểm thử
   idempotency, hết hạn, thất bại và thanh toán muộn. Chưa xác nhận luồng này hoàn tất.
 - Hưng: kiểm thử giao diện và tổng duyệt end-to-end sau các phần trên; cập nhật README
   và minh chứng demo. Chưa có bằng chứng frontend build/browser demo cho phiên này.

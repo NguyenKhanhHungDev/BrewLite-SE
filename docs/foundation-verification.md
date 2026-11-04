@@ -5,7 +5,7 @@ Ngày: 03/11/2026. Nhánh: `codex/fix-ingredient-recipe-migration`.
 
 ## Thay đổi
 
-- Sửa conflict schema, giữ Payment/VNPAY và tham chiếu Product lịch sử.
+- Sửa conflict schema, giữ Payment lịch sử và tham chiếu Product lịch sử.
 - Migration `20261103020000_ingredient_recipe_admin` thêm bảng/trường và CHECK constraints.
 - Guard đọc role từ DB qua AuthService; AuthModule export AuthService cho guard dùng trong OrdersModule.
 - `/auth/me` trả role. Khách vẫn xem đơn của mình; Admin có thể xem toàn bộ.
@@ -54,7 +54,7 @@ Script hiện in ba nhóm PASS.
 
 ## Giới hạn
 
-Chưa kiểm chứng Ingredients routes, giao diện, checkout VNPAY hoặc IPN.
+Chưa kiểm chứng Ingredients routes, giao diện, checkout thanh toán sandbox hoặc callback.
 14 integration tests cũ vẫn skip trong lần chạy unit suite; không tính chúng là đạt.
 Seed cập nhật giá/ảnh và định lượng demo; chỉ chạy trong môi trường đã xác minh,
 không dùng seed để thay thế luồng quản trị công thức đang hoạt động.
