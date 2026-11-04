@@ -67,7 +67,7 @@ model Payment {
   orderId               Int
   order                 Order     @relation(fields: [orderId], references: [id])
   userId                Int?
-  provider              String    @default("VNPAY")
+  provider              String    @default("ZALOPAY")
   transactionRef        String?   @unique
   creationStatus        String    @default("UNKNOWN")
   lastQueriedAt         DateTime?
@@ -76,7 +76,7 @@ model Payment {
   idempotencyKey        String?
   requestHash           String?
   amount                Int
-  method                String    @default("VNPAY")
+  method                String    @default("ZALOPAY")
   status                String    @default("PENDING")
   paidAt                DateTime?
   createdAt             DateTime  @default(now())
