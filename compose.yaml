@@ -23,8 +23,20 @@ services:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?schema=public
       JWT_SECRET: ${JWT_SECRET}
       PORT: 3001
+      ZALOPAY_APP_ID: ${ZALOPAY_APP_ID:-}
+      ZALOPAY_KEY1: ${ZALOPAY_KEY1:-}
+      ZALOPAY_KEY2: ${ZALOPAY_KEY2:-}
+      ZALOPAY_API_BASE_URL: ${ZALOPAY_API_BASE_URL:-https://sb-openapi.zalopay.vn}
+      ZALOPAY_CALLBACK_URL: ${ZALOPAY_CALLBACK_URL:-}
+      ZALOPAY_RETURN_URL: ${ZALOPAY_RETURN_URL:-http://localhost:3000/payment/result}
     ports:
-      - "127.0.0.1:3001:3001"
+      - "127.0.0.1:${API_PORT:-3001}:3001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/products').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
@@ -36,10 +48,16 @@ services:
         API_INTERNAL_URL: http://api:3001
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   brewlite_pg_data:

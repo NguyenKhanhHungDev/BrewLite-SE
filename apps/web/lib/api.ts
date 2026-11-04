@@ -2,6 +2,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    public code?: string,
   ) {
     super(message);
   }
@@ -40,7 +41,11 @@ export async function requestJson(
         message = data.message
           .filter((item) => typeof item === "string")
           .join(". ");
-      throw new ApiError(message, response.status);
+      throw new ApiError(
+        message,
+        response.status,
+        isObject(data) && typeof data.code === "string" ? data.code : undefined,
+      );
     }
     if (data === null)
       throw new Error(

@@ -99,7 +99,9 @@ function mapRecipeRows(rows: RecipeRow[]): RecipeSnapshot | null {
         row.reserved === null ||
         row.version === null
       ) {
-        throw new BadRequestException(`Công thức ${first.id} tham chiếu nguyên liệu không hợp lệ`);
+        throw new BadRequestException(
+          `Công thức ${first.id} tham chiếu nguyên liệu không hợp lệ`,
+        );
       }
       return {
         ingredientId: Number(row.ingredientId),
@@ -124,8 +126,14 @@ function mapRecipeRows(rows: RecipeRow[]): RecipeSnapshot | null {
 }
 
 function mapToppings(rows: IngredientRow[]): ToppingIngredientSnapshot {
-  const pearl = rows.find((row) => row.name.toLocaleLowerCase('vi') === PEARL_NAME.toLocaleLowerCase('vi'));
-  const cream = rows.find((row) => row.name.toLocaleLowerCase('vi') === CREAM_NAME.toLocaleLowerCase('vi'));
+  const pearl = rows.find(
+    (row) =>
+      row.name.toLocaleLowerCase('vi') === PEARL_NAME.toLocaleLowerCase('vi'),
+  );
+  const cream = rows.find(
+    (row) =>
+      row.name.toLocaleLowerCase('vi') === CREAM_NAME.toLocaleLowerCase('vi'),
+  );
   return {
     pearl: pearl ? ingredientFromRow(pearl) : null,
     cream: cream ? ingredientFromRow(cream) : null,
@@ -137,13 +145,18 @@ function mapItems(rows: OrderItemRow[]) {
     recipeId: row.recipeId === null ? null : Number(row.recipeId),
     recipeName: row.recipeName ?? row.productName ?? 'Món đã ngừng kinh doanh',
     // Keep the legacy API field usable by the menu UI: new productId values alias Recipe.id.
-    productId: row.productId === null
-      ? (row.recipeId === null ? null : Number(row.recipeId))
-      : Number(row.productId),
+    productId:
+      row.productId === null
+        ? row.recipeId === null
+          ? null
+          : Number(row.recipeId)
+        : Number(row.productId),
     quantity: Number(row.quantity),
     size: row.size,
     toppings: Array.isArray(row.toppings)
-      ? row.toppings.filter((value): value is string => typeof value === 'string')
+      ? row.toppings.filter(
+          (value): value is string => typeof value === 'string',
+        )
       : [],
     unitPrice: Number(row.unitPrice),
     subtotal: Number(row.subtotal),
@@ -219,13 +232,17 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
         `;
         if (existing[0]) {
           if (existing[0].idempotencyHash !== draft.idempotencyHash) {
-            throw new ConflictException('Idempotency-Key đã được sử dụng với nội dung khác');
+            throw new ConflictException(
+              'Idempotency-Key đã được sử dụng với nội dung khác',
+            );
           }
           return existing[0];
         }
       }
 
-      const recipeIds = [...new Set(draft.items.map((line) => line.productId))].sort((a, b) => a - b);
+      const recipeIds = [
+        ...new Set(draft.items.map((line) => line.productId)),
+      ].sort((a, b) => a - b);
       const recipeRows = await tx.$queryRaw<RecipeRow[]>`
         SELECT
           r."id", r."name", r."price", r."isActive",
@@ -251,12 +268,22 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       }
       for (const line of draft.items) {
         const recipe = recipes.get(line.productId);
-        if (!recipe) throw new NotFoundException(`Không tìm thấy món ${line.productId}`);
+        if (!recipe)
+          throw new NotFoundException(`Không tìm thấy món ${line.productId}`);
         if (!recipe.isActive || recipe.ingredients.length === 0) {
-          throw new BadRequestException(`Món ${recipe.name} không có công thức đang hoạt động`);
+          throw new BadRequestException(
+            `Món ${recipe.name} không có công thức đang hoạt động`,
+          );
         }
-        if (recipe.name !== line.recipeName || recipe.price !== line.basePrice) {
-          throw new ConflictException('Công thức hoặc giá món vừa thay đổi; vui lòng tải lại giỏ hàng');
+        if (
+          recipe.name !== line.recipeName ||
+          recipe.price !== line.basePrice
+        ) {
+          throw new ConflictException({
+            code: 'ORDER_CATALOG_CHANGED',
+            message:
+              'Công thức hoặc giá món vừa thay đổi; vui lòng tải lại giỏ hàng',
+          });
         }
       }
 
@@ -307,12 +334,19 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
         `;
       }
 
-      await reserveForOrder(tx as unknown as OrdersInventoryTransaction, order.id, requirements);
+      await reserveForOrder(
+        tx as unknown as OrdersInventoryTransaction,
+        order.id,
+        requirements,
+      );
       return order;
     });
   }
 
-  async findOrderForUser(orderId: number, userId: number): Promise<OrderDetailRecord | null> {
+  async findOrderForUser(
+    orderId: number,
+    userId: number,
+  ): Promise<OrderDetailRecord | null> {
     const orders = await this.prisma.$queryRaw<OrderRow[]>`
       SELECT "id", "status", "total", "createdAt", "expiresAt"
       FROM "Order"
@@ -417,6 +451,11 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
         SELECT "id"
         FROM "Order"
         WHERE "status" = 'PENDING'
+          AND NOT EXISTS (
+            SELECT 1 FROM "Payment" p
+            WHERE p."orderId" = "Order"."id" AND p."provider" = 'ZALOPAY'
+              AND p."status" = 'PENDING' AND p."creationStatus" <> 'REJECTED'
+          )
           AND "expiresAt" IS NOT NULL
           AND "expiresAt" <= CURRENT_TIMESTAMP
         ORDER BY "expiresAt" ASC, "id" ASC
@@ -425,7 +464,11 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       `;
       let count = 0;
       for (const order of expired) {
-        await releaseReservation(tx as unknown as OrdersInventoryTransaction, Number(order.id), 'CANCELLED');
+        await releaseReservation(
+          tx as unknown as OrdersInventoryTransaction,
+          Number(order.id),
+          'CANCELLED',
+        );
         count += 1;
       }
       return count;

@@ -11,7 +11,11 @@ export default function ProductCard({ product }: { product: Product }) {
         aria-label={`Xem chi tiết ${product.name}`}
       >
         <ProductImage src={product.imageUrl} name={product.name} />
-        {product.stock === 0 && <span className="bl-soldout">Hết hàng</span>}
+        {(product.stockBySize
+          ? Math.max(...Object.values(product.stockBySize))
+          : product.stock) === 0 && (
+          <span className="bl-soldout">Hết hàng</span>
+        )}
       </Link>
       <div className="bl-product-info">
         <h3>{product.name}</h3>

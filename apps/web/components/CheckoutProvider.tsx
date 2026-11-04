@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { ApiError, isObject, requestJson } from "@/lib/api";
+import { isKnownOrderConflict } from "@/lib/order-conflict";
 import { cartTotal, orderItems, parseCart, type CartLine } from "@/lib/cart";
 import { parseProducts } from "@/lib/products";
 import { parsePromoCode, previewPromotion } from "@/lib/promotion";
@@ -340,15 +341,10 @@ function CheckoutStore({ children }: { children: ReactNode }) {
         });
         return order;
       } catch (error) {
-        const inventoryConflict =
-          error instanceof ApiError &&
-          error.status === 409 &&
-          error.message === "Tồn kho vừa thay đổi, hãy thử lại";
-
-        if (inventoryConflict) {
+        if (isKnownOrderConflict(error)) {
           commit({ ...current.current, draft: null });
           throw new Error(
-            "Tồn kho vừa thay đổi, đơn chưa được tạo. Hãy về giỏ kiểm tra món và số lượng rồi xác nhận lại.",
+            "Giá hoặc tồn kho vừa thay đổi, đơn chưa được tạo. Hãy về giỏ kiểm tra rồi xác nhận lại.",
           );
         }
 

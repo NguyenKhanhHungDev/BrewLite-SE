@@ -1,18 +1,22 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { IngredientNeed } from './orders.ingredients.js';
 
 /** Structural subset shared by Prisma interactive transactions from Orders and Payments. */
 export interface OrdersInventoryTransaction {
-  $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: any[]): Promise<T>;
+  $queryRaw<T = unknown>(
+    query: TemplateStringsArray,
+    ...values: any[]
+  ): Promise<T>;
   $executeRaw(query: TemplateStringsArray, ...values: any[]): Promise<number>;
 }
 
 export type ReservationReleaseStatus = 'PAYMENT_FAILED' | 'CANCELLED';
 export type ReservationConsumeResult =
-  | 'CONSUMED'
-  | 'ALREADY_CONSUMED'
-  | 'EXPIRED'
-  | 'LEGACY_ORDER';
+  'CONSUMED' | 'ALREADY_CONSUMED' | 'EXPIRED' | 'LEGACY_ORDER';
 
 interface OrderRow {
   id: number;
@@ -32,7 +36,9 @@ export async function reserveForOrder(
   orderId: number,
   requirements: IngredientNeed[],
 ): Promise<void> {
-  for (const need of [...requirements].sort((a, b) => a.ingredientId - b.ingredientId)) {
+  for (const need of [...requirements].sort(
+    (a, b) => a.ingredientId - b.ingredientId,
+  )) {
     const changed = await tx.$queryRaw<Array<{ id: number }>>`
       UPDATE "Ingredient"
       SET "reserved" = "reserved" + ${need.quantity},
@@ -72,8 +78,15 @@ export async function releaseReservation(
   const order = orders[0];
   if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
 
-  if (order.status === 'PAID' || order.status === 'PREPARING' || order.status === 'READY' || order.status === 'COMPLETED') {
-    throw new ConflictException('Không thể hoàn nguyên liệu của đơn đã thanh toán');
+  if (
+    order.status === 'PAID' ||
+    order.status === 'PREPARING' ||
+    order.status === 'READY' ||
+    order.status === 'COMPLETED'
+  ) {
+    throw new ConflictException(
+      'Không thể hoàn nguyên liệu của đơn đã thanh toán',
+    );
   }
 
   const reservations = await tx.$queryRaw<ReservationRow[]>`
@@ -94,7 +107,9 @@ export async function releaseReservation(
       RETURNING "id"
     `;
     if (changed.length !== 1) {
-      throw new ConflictException('Reservation không nhất quán; không thể hoàn nguyên liệu');
+      throw new ConflictException(
+        'Reservation không nhất quán; không thể hoàn nguyên liệu',
+      );
     }
 
     const released = await tx.$queryRaw<Array<{ id: number }>>`
@@ -106,7 +121,9 @@ export async function releaseReservation(
       RETURNING "ingredientId" AS "id"
     `;
     if (released.length !== 1) {
-      throw new ConflictException('Reservation đã thay đổi trong lúc hoàn nguyên liệu');
+      throw new ConflictException(
+        'Reservation đã thay đổi trong lúc hoàn nguyên liệu',
+      );
     }
   }
 
@@ -140,6 +157,8 @@ export async function releaseReservation(
 export async function consumeReservation(
   tx: OrdersInventoryTransaction,
   orderId: number,
+  // Only Payments may bypass the clock after a gateway-confirmed success; released reservations still fail.
+  verifiedGatewaySuccess = false,
 ): Promise<ReservationConsumeResult> {
   const orders = await tx.$queryRaw<OrderRow[]>`
     SELECT "id", "status", "expiresAt"
@@ -157,39 +176,60 @@ export async function consumeReservation(
     ORDER BY "ingredientId" ASC
     FOR UPDATE
   `;
-  const reservedRows = reservations.filter((item) => item.status === 'RESERVED');
-  const isPaidOrBeyond = ['PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(order.status);
+  const reservedRows = reservations.filter(
+    (item) => item.status === 'RESERVED',
+  );
+  const isPaidOrBeyond = ['PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(
+    order.status,
+  );
 
   if (order.status === 'CANCELLED' || order.status === 'PAYMENT_FAILED') {
-    throw new ConflictException('Đơn đã giải phóng nguyên liệu; không thể ghi nhận PAID');
+    throw new ConflictException(
+      'Đơn đã giải phóng nguyên liệu; không thể ghi nhận PAID',
+    );
   }
   if (order.status !== 'PENDING' && !isPaidOrBeyond) {
-    throw new ConflictException(`Không thể tiêu thụ nguyên liệu ở trạng thái ${order.status}`);
+    throw new ConflictException(
+      `Không thể tiêu thụ nguyên liệu ở trạng thái ${order.status}`,
+    );
   }
 
-  if (order.status === 'PENDING' && order.expiresAt && order.expiresAt.getTime() <= Date.now()) {
+  if (
+    !verifiedGatewaySuccess &&
+    order.status === 'PENDING' &&
+    order.expiresAt &&
+    order.expiresAt.getTime() <= Date.now()
+  ) {
     await releaseReservation(tx, orderId, 'CANCELLED');
     return 'EXPIRED';
   }
 
   if (reservedRows.length === 0) {
-    if (reservations.length > 0 && reservations.every((item) => item.status === 'CONSUMED')) {
+    if (
+      reservations.length > 0 &&
+      reservations.every((item) => item.status === 'CONSUMED')
+    ) {
       if (order.status === 'PENDING') {
         const paid = await tx.$queryRaw<Array<{ id: number }>>`
           UPDATE "Order"
           SET "status" = 'PAID'
           WHERE "id" = ${orderId}
             AND "status" = 'PENDING'
-            AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_TIMESTAMP)
+            AND (${verifiedGatewaySuccess} OR "expiresAt" IS NULL OR "expiresAt" > CURRENT_TIMESTAMP)
           RETURNING "id"
         `;
-        if (paid.length !== 1) throw new ConflictException('Đơn đã hết hạn hoặc trạng thái đã thay đổi');
+        if (paid.length !== 1)
+          throw new ConflictException(
+            'Đơn đã hết hạn hoặc trạng thái đã thay đổi',
+          );
       }
       return 'ALREADY_CONSUMED';
     }
 
     if (reservations.length > 0) {
-      throw new ConflictException('Đơn đã giải phóng nguyên liệu; không thể ghi nhận PAID');
+      throw new ConflictException(
+        'Đơn đã giải phóng nguyên liệu; không thể ghi nhận PAID',
+      );
     }
 
     // Orders created before the ingredient-inventory migration have no expiry
@@ -223,7 +263,9 @@ export async function consumeReservation(
       RETURNING "id"
     `;
     if (changed.length !== 1) {
-      throw new ConflictException('Tồn kho không nhất quán; không thể tiêu thụ reservation');
+      throw new ConflictException(
+        'Tồn kho không nhất quán; không thể tiêu thụ reservation',
+      );
     }
 
     const consumed = await tx.$queryRaw<Array<{ id: number }>>`
@@ -245,7 +287,7 @@ export async function consumeReservation(
       SET "status" = 'PAID'
       WHERE "id" = ${orderId}
         AND "status" = 'PENDING'
-        AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_TIMESTAMP)
+        AND (${verifiedGatewaySuccess} OR "expiresAt" IS NULL OR "expiresAt" > CURRENT_TIMESTAMP)
       RETURNING "id"
     `;
     if (paid.length !== 1) {

@@ -85,6 +85,7 @@ describe('ZalopayService & PaymentsService (05_THANG Spec)', () => {
     let callCount = 0;
 
     const store: PaymentOrdersStore = {
+      markZalopayCreation: vi.fn(),
       claimZalopayAttempt: async () => {
         callCount += 1;
         return {
@@ -152,6 +153,7 @@ describe('ZalopayService & PaymentsService (05_THANG Spec)', () => {
     let resolutionCalls = 0;
 
     const store: PaymentOrdersStore = {
+      markZalopayCreation: vi.fn(),
       claimZalopayAttempt: vi.fn(),
       saveZalopayPaymentUrl: vi.fn(),
       listPendingZalopayAttempts: async () => [],
@@ -234,6 +236,7 @@ describe('ZalopayService & PaymentsService (05_THANG Spec)', () => {
 
   it('preserves SUCCESS status if callback completes before create response returns', async () => {
     const store: PaymentOrdersStore = {
+      markZalopayCreation: vi.fn(),
       claimZalopayAttempt: async () => ({
         mode: 'NEW',
         orderId: 20,
@@ -280,6 +283,7 @@ describe('ZalopayService & PaymentsService (05_THANG Spec)', () => {
 
   it('throws 409 Conflict when same Idempotency-Key is reused with different orderId', async () => {
     const store: PaymentOrdersStore = {
+      markZalopayCreation: vi.fn(),
       claimZalopayAttempt: async () => {
         throw new ConflictException(
           'Idempotency-Key already used with different request parameters',

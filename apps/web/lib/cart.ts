@@ -36,14 +36,15 @@ function validateQuantity(quantity: number) {
   }
 }
 
-function validateStock(lines: CartLine[], product: Product) {
+function validateStock(lines: CartLine[], product: Product, size: Size) {
+  const stock = product.stockBySize?.[size] ?? product.stock;
   const total = lines
-    .filter((line) => line.product.id === product.id)
+    .filter((line) => line.product.id === product.id && line.size === size)
     .reduce((sum, line) => sum + line.quantity, 0);
-  if (product.stock <= 0) throw new Error("Món đã hết hàng.");
-  if (total > product.stock) {
+  if (stock <= 0) throw new Error("Món đã hết hàng.");
+  if (total > stock) {
     throw new Error(
-      `Tổng số ly ${product.name} trong giỏ không được vượt ${product.stock}.`,
+      `Tổng số ly ${product.name} trong giỏ không được vượt ${stock}.`,
     );
   }
 }
@@ -78,7 +79,7 @@ export function addCartLine(
           quantity,
         },
       ];
-  validateStock(next, product);
+  validateStock(next, product, size);
   cartTotal(next);
   return next;
 }
@@ -94,7 +95,7 @@ export function changeCartQuantity(
   const next = lines.map((item) =>
     item.key === key ? { ...item, quantity } : item,
   );
-  validateStock(next, line.product);
+  validateStock(next, line.product, line.size);
   cartTotal(next);
   return next;
 }
@@ -141,10 +142,13 @@ export function reconcileCart(lines: CartLine[], products: Product[]) {
     }
     if (product.price !== line.product.price) priceChanged = true;
     const quantity = lines
-      .filter((item) => item.product.id === product.id)
+      .filter(
+        (item) => item.product.id === product.id && item.size === line.size,
+      )
       .reduce((sum, item) => sum + item.quantity, 0);
-    if (quantity > product.stock)
-      issues.push(`${product.name} chỉ còn ${product.stock} ly. Hãy sửa giỏ.`);
+    const stock = product.stockBySize?.[line.size] ?? product.stock;
+    if (quantity > stock)
+      issues.push(`${product.name} chỉ còn ${stock} ly. Hãy sửa giỏ.`);
     try {
       unitPrice(product.price, line.size, line.toppings);
     } catch {

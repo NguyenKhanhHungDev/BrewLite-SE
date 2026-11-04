@@ -11,7 +11,14 @@ const prisma = new PrismaClient({
 async function main() {
   await prisma.$transaction(
     async (tx) => {
-      console.log('🌱 Bắt đầu seed dữ liệu nguyên liệu và công thức...');
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(20261104)::text AS locked`;
+      if (await tx.seedRun.findUnique({ where: { id: 'brewlite-demo-v1' } }))
+        return;
+      if ((await tx.ingredient.count()) || (await tx.recipe.count())) {
+        await tx.seedRun.create({ data: { id: 'brewlite-demo-v1' } });
+        return;
+      }
+      console.log('Initializing demo data on an empty database');
 
       // 1. Danh sách nguyên liệu chuẩn (15 loại)
       const ingredientsData = [
@@ -49,10 +56,7 @@ async function main() {
           if (existing.unit !== ing.unit) {
             throw new Error(`Ingredient unit mismatch: ${ing.name}`);
           }
-          record = await tx.ingredient.update({
-            where: { name: ing.name },
-            data: { minStock: ing.minStock }, // Giữ nguyên stock cũ nếu đã tồn tại
-          });
+          record = existing;
         }
         ingredientMap.set(record.name, record.id);
       }
@@ -174,20 +178,17 @@ async function main() {
       ];
 
       for (const rec of recipesData) {
-        const recipe = await tx.recipe.upsert({
+        const existing = await tx.recipe.findUnique({
           where: { name: rec.name },
-          update: { price: rec.price, imageUrl: rec.imageUrl },
-          create: {
+        });
+        if (existing) continue;
+        const recipe = await tx.recipe.create({
+          data: {
             name: rec.name,
             price: rec.price,
             imageUrl: rec.imageUrl,
             isActive: true,
           },
-        });
-
-        // Xóa liên kết cũ và tạo lại định lượng mới để tránh trùng lặp
-        await tx.recipeIngredient.deleteMany({
-          where: { recipeId: recipe.id },
         });
 
         for (const item of rec.recipeIngredients) {
@@ -202,6 +203,7 @@ async function main() {
           });
         }
       }
+      await tx.seedRun.create({ data: { id: 'brewlite-demo-v1' } });
     },
     { timeout: 30_000 },
   );

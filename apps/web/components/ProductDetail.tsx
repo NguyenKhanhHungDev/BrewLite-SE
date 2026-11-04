@@ -7,6 +7,7 @@ import ProductImage from "@/components/ProductImage";
 import { parseProducts, type Product } from "@/lib/products";
 import {
   money,
+  sizePrice,
   toppingPrice,
   toppingNames,
   unitPrice,
@@ -144,12 +145,13 @@ function ProductDetail({ id }: { id: string }) {
       </main>
     );
   }
+  const stock = product.stockBySize?.[size] ?? product.stock;
   const count = Number(quantity);
   const validQuantity =
     quantity.trim() !== "" &&
     Number.isSafeInteger(count) &&
     count >= 1 &&
-    count <= Math.min(99, product.stock);
+    count <= Math.min(99, stock);
 
   function add() {
     setError("");
@@ -176,13 +178,13 @@ function ProductDetail({ id }: { id: string }) {
       <section className="bl-detail-panel" aria-labelledby="product-name">
         <div className="bl-detail-image">
           <ProductImage src={product.imageUrl} name={product.name} hero />
-          {product.stock === 0 && <span className="bl-soldout">Hết hàng</span>}
+          {stock === 0 && <span className="bl-soldout">Hết hàng</span>}
         </div>
         <div className="bl-detail-content">
           <p className="bl-eyebrow">Chi tiết đồ uống</p>
           <h1 id="product-name">{product.name}</h1>
           <p className="bl-detail-stock">
-            {product.stock === 0 ? "Hết hàng" : `Còn ${product.stock} sản phẩm`}
+            {stock === 0 ? "Hết hàng" : `Còn ${stock} ly size ${size}`}
           </p>
           <p className="bl-detail-base-price">
             Giá size M:{" "}
@@ -198,13 +200,16 @@ function ProductDetail({ id }: { id: string }) {
                     type="radio"
                     name="size"
                     value={option}
+                    disabled={sizePrice(product.price, option) === null}
                     checked={size === option}
                     onChange={() => setSize(option)}
                   />
                   <span>
                     <strong>Size {option}</strong>
                     <small>
-                      {money(unitPrice(product.price, option, []))}
+                      {sizePrice(product.price, option) === null
+                        ? "Không áp dụng"
+                        : money(sizePrice(product.price, option)!)}
                     </small>
                   </span>
                 </label>
@@ -236,10 +241,10 @@ function ProductDetail({ id }: { id: string }) {
             <input
               type="number"
               min={1}
-              max={Math.min(99, product.stock)}
+              max={Math.min(99, stock)}
               step={1}
               value={quantity}
-              disabled={product.stock === 0}
+              disabled={stock === 0}
               onChange={(event) => setQuantity(event.target.value)}
               aria-describedby="quantity-help"
             />
@@ -265,7 +270,7 @@ function ProductDetail({ id }: { id: string }) {
             <button
               className="bl-button"
               type="button"
-              disabled={!cart.ready || product.stock === 0}
+              disabled={!cart.ready || stock === 0}
               onClick={add}
             >
               Thêm vào giỏ

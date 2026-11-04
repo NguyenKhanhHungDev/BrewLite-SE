@@ -8,8 +8,8 @@
   --bl-muted: #6f655e;
   --bl-border: #e8e1d9;
   --bl-sand: #efe5da;
-  --bl-body: var(--font-dm-sans), Arial, sans-serif;
-  --bl-display: var(--font-fraunces), Georgia, serif;
+  --bl-body: Arial, sans-serif;
+  --bl-display: Georgia, serif;
 }
 .bl-admin h1 { margin: 0 0 24px; font-family: var(--bl-display); font-size: 32px; }
 .bl-admin-nav { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
