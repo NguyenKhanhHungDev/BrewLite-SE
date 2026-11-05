@@ -1,4 +1,5 @@
 import { parseProducts, type Product } from "./products";
+import { parsePreferences, type Preferences } from "./preferences";
 import {
   isSize,
   isToppings,
@@ -7,7 +8,7 @@ import {
   type Topping,
 } from "./pricing";
 
-export type CartLine = {
+export type CartLine = Preferences & {
   key: string;
   product: Product;
   size: Size;
@@ -15,8 +16,18 @@ export type CartLine = {
   quantity: number;
 };
 
-export function cartKey(id: number, size: Size, toppings: Topping[]) {
-  return `${id}:${size}:${[...toppings].sort().join(",")}`;
+export function cartKey(
+  id: number,
+  size: Size,
+  toppings: Topping[],
+  preferences: Preferences = {},
+) {
+  const { sugarLevel, iceLevel, note } = parsePreferences(preferences);
+  const base = `${id}:${size}:${[...toppings].sort().join(",")}`;
+  // Keep legacy keys so pending checkout snapshots can still subtract correctly.
+  return sugarLevel === null && iceLevel === null && note === null
+    ? base
+    : `${base}:${JSON.stringify([sugarLevel, iceLevel, note])}`;
 }
 
 export function cartTotal(lines: CartLine[]) {
@@ -55,10 +66,12 @@ export function addCartLine(
   size: Size,
   toppings: Topping[],
   quantity: number,
+  preferences: Preferences = {},
 ) {
   validateQuantity(quantity);
   unitPrice(product.price, size, toppings);
-  const key = cartKey(product.id, size, toppings);
+  const parsed = parsePreferences(preferences);
+  const key = cartKey(product.id, size, toppings, parsed);
   const refreshed = lines.map((line) =>
     line.product.id === product.id ? { ...line, product } : line,
   );
@@ -77,6 +90,7 @@ export function addCartLine(
           size,
           toppings: [...toppings].sort(),
           quantity,
+          ...parsed,
         },
       ];
   validateStock(next, product, size);
@@ -124,6 +138,7 @@ export function parseCart(value: unknown): CartLine[] {
       item.size,
       item.toppings,
       item.quantity,
+      parsePreferences(item),
     );
   }
   return lines;
@@ -168,6 +183,10 @@ export function orderItems(lines: CartLine[]) {
     quantity: line.quantity,
     size: line.size,
     toppings: [...line.toppings],
+    // Omit unknown fields to preserve payloads/hashes of legacy pending requests.
+    ...(line.sugarLevel == null ? {} : { sugarLevel: line.sugarLevel }),
+    ...(line.iceLevel == null ? {} : { iceLevel: line.iceLevel }),
+    ...(line.note ? { note: line.note } : {}),
   }));
 }
 

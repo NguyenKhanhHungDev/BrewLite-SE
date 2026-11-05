@@ -15,6 +15,13 @@ import {
   type Topping,
 } from "@/lib/pricing";
 import { useCart } from "./CartProvider";
+import {
+  iceOptions,
+  sugarOptions,
+  MAX_NOTE_LENGTH,
+  type IceLevel,
+  type SugarLevel,
+} from "@/lib/preferences";
 type ProductState =
   | { status: "loading" }
   | { status: "error" | "not-found" }
@@ -45,6 +52,9 @@ function ProductDetail({ id }: { id: string }) {
   const [state, setState] = useState<ProductState>({ status: "loading" });
   const [size, setSize] = useState<Size>("M");
   const [toppings, setToppings] = useState<Topping[]>([]);
+  const [sugarLevel, setSugarLevel] = useState<SugarLevel>(100);
+  const [iceLevel, setIceLevel] = useState<IceLevel>("NORMAL");
+  const [note, setNote] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -161,7 +171,7 @@ function ProductDetail({ id }: { id: string }) {
         throw new Error(
           "Số ly phải là số nguyên từ 1–99 và không vượt tồn kho.",
         );
-      cart.add(product, size, toppings, count);
+      cart.add(product, size, toppings, count, { sugarLevel, iceLevel, note });
       setMessage(`Đã thêm ${count} ly ${product.name} vào giỏ.`);
       if (timer.current !== null) window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => setMessage(""), 3000);
@@ -231,6 +241,56 @@ function ProductDetail({ id }: { id: string }) {
               </label>
             ))}
           </fieldset>
+
+          <fieldset>
+            <legend>Chọn đường</legend>
+            <div className="bl-preference-options">
+              {sugarOptions.map((option) => (
+                <label key={option.value} className="bl-option">
+                  <input
+                    type="radio"
+                    name="sugarLevel"
+                    value={option.value}
+                    checked={sugarLevel === option.value}
+                    onChange={() => setSugarLevel(option.value)}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Chọn đá</legend>
+            <div className="bl-preference-options">
+              {iceOptions.map((option) => (
+                <label key={option.value} className="bl-option">
+                  <input
+                    type="radio"
+                    name="iceLevel"
+                    value={option.value}
+                    checked={iceLevel === option.value}
+                    onChange={() => setIceLevel(option.value)}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <label className="bl-field">
+            Ghi chú cho món
+            <textarea
+              rows={3}
+              maxLength={MAX_NOTE_LENGTH}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Ví dụ: để riêng topping"
+              aria-describedby="item-note-help"
+            />
+          </label>
+          <p id="item-note-help" className="bl-muted">
+            {note.length}/{MAX_NOTE_LENGTH} ký tự. Khẩu vị không phụ thu.
+            Quán sẽ xem ghi chú và đáp ứng khi có thể.
+          </p>
 
           <p className="bl-detail-total" aria-live="polite" aria-atomic="true">
             <span>Giá tạm tính / ly</span>

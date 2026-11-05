@@ -58,6 +58,9 @@ model OrderItem {
   quantity   Int
   size       String   @default("M")
   toppings   Json
+  sugarLevel Int?
+  iceLevel   String?
+  note       String?  @db.VarChar(200)
   unitPrice  Int
   subtotal   Int
 }

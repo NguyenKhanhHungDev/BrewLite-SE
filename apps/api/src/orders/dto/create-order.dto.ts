@@ -11,7 +11,15 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
+import {
+  ICE_LEVELS,
+  MAX_NOTE_LENGTH,
+  SUGAR_LEVELS,
+  type IceLevel,
+  type SugarLevel,
+} from '../order-preferences.js';
 
 export class CreateOrderItemDto {
   @IsInt()
@@ -32,6 +40,19 @@ export class CreateOrderItemDto {
   @ArrayUnique()
   @IsIn(['PEARL', 'CREAM'], { each: true })
   toppings?: ('PEARL' | 'CREAM')[];
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(SUGAR_LEVELS)
+  sugarLevel?: SugarLevel;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(ICE_LEVELS)
+  iceLevel?: IceLevel;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MaxLength(MAX_NOTE_LENGTH)
+  note?: string;
 }
 
 export class CreateOrderDto {
