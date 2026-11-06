@@ -33,6 +33,8 @@ type Draft = {
   owner: number;
   key: string;
   snapshot: CartLine[];
+  recipientName: string;
+  recipientPhone: string;
   promoCode?: string;
 };
 type Purchase = Draft & OrderResult & { cartCleared: boolean };
@@ -59,7 +61,12 @@ type CheckoutApi = State & {
   setPromoInput: (value: string) => void;
   applyPromo: () => void;
   removePromo: () => void;
-  createOrder: (lines: CartLine[], promoCode?: string) => Promise<OrderResult>;
+  createOrder: (
+    lines: CartLine[],
+    recipientName: string,
+    recipientPhone: string,
+    promoCode?: string,
+  ) => Promise<OrderResult>;
   startPayment: () => Promise<string>;
   syncPayment: (status: PaymentStatus) => void;
   syncOrder: (order: OrderRecord) => void;
@@ -79,10 +86,17 @@ function parseDraft(value: unknown): Draft {
   const snapshot = parseCart(value.snapshot);
   if (!snapshot.length) throw new Error();
   const promoCode = parsePromoCode(value.promoCode);
+  // Old session drafts may not contain these fields; keep them editable so the
+  // user can complete the new recipient step without corrupting saved state.
+  const recipientName = typeof value.recipientName === "string" ? value.recipientName : "";
+  const recipientPhone = typeof value.recipientPhone === "string" ? value.recipientPhone : "";
+  if (recipientName.length > 100 || recipientPhone.length > 30) throw new Error();
   return {
     owner: Number(value.owner),
     key: value.key,
     snapshot,
+    recipientName,
+    recipientPhone,
     ...(promoCode ? { promoCode } : {}),
   };
 }
@@ -282,6 +296,8 @@ function CheckoutStore({ children }: { children: ReactNode }) {
 
   async function createOrder(
     lines: CartLine[],
+    recipientNameInput: string,
+    recipientPhoneInput: string,
     promoCode?: string,
   ): Promise<OrderResult> {
     if (processing.current) throw new Error("Yêu cầu đang được xử lý.");
@@ -311,12 +327,31 @@ function CheckoutStore({ children }: { children: ReactNode }) {
           cartTotal(checked.lines) <= 0
         )
           throw new Error("Giỏ hàng phải có tổng tiền lớn hơn 0.");
+        const recipientName = recipientNameInput.trim();
+        const recipientPhone = recipientPhoneInput.trim().replace(/[\s().-]/g, "");
+        if (recipientName.length < 2 || recipientName.length > 100)
+          throw new Error("Tên người nhận phải có từ 2 đến 100 ký tự.");
+        if (!/^\+?\d{8,15}$/.test(recipientPhone))
+          throw new Error("Số điện thoại phải có từ 8 đến 15 chữ số.");
         draft = {
           owner: session.userId,
           key: crypto.randomUUID(),
           snapshot: parseCart(checked.lines),
+          recipientName,
+          recipientPhone,
           ...(code ? { promoCode: code } : {}),
         };
+        commit({ ...current.current, draft });
+      } else if (!draft.recipientName || !draft.recipientPhone) {
+        // A draft saved by an older frontend can be restored without the
+        // recipient step. Complete it while preserving its idempotency key.
+        const recipientName = recipientNameInput.trim();
+        const recipientPhone = recipientPhoneInput.trim().replace(/[\s().-]/g, "");
+        if (recipientName.length < 2 || recipientName.length > 100)
+          throw new Error("Tên người nhận phải có từ 2 đến 100 ký tự.");
+        if (!/^\+?\d{8,15}$/.test(recipientPhone))
+          throw new Error("Số điện thoại phải có từ 8 đến 15 chữ số.");
+        draft = { ...draft, recipientName, recipientPhone };
         commit({ ...current.current, draft });
       }
       try {
@@ -327,6 +362,8 @@ function CheckoutStore({ children }: { children: ReactNode }) {
             "Idempotency-Key": draft.key,
           },
           body: JSON.stringify({
+            recipientName: draft.recipientName,
+            recipientPhone: draft.recipientPhone,
             items: orderItems(draft.snapshot),
             ...(draft.promoCode ? { promoCode: draft.promoCode } : {}),
           }),

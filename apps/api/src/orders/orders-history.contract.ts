@@ -3,6 +3,8 @@ export interface OrderHistoryRecord {
   status: string;
   total: number;
   createdAt: Date;
+  recipientName: string | null;
+  recipientPhone: string | null;
   items: Array<{
     recipeId: number | null;
     recipeName: string;

@@ -8,6 +8,9 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsNotEmpty,
+  Length,
+  Matches,
   MaxLength,
   Min,
   ValidateNested,
@@ -35,6 +38,17 @@ export class CreateOrderItemDto {
 }
 
 export class CreateOrderDto {
+  @IsString()
+  @IsNotEmpty()
+  @Length(2, 100)
+  recipientName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
+  @Matches(/^\+?[0-9][0-9\s().-]{6,18}[0-9]$/)
+  recipientPhone!: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

@@ -19,6 +19,8 @@ export type OrderRecord = {
   status: OrderStatus;
   total: number;
   createdAt: string;
+  recipientName: string | null;
+  recipientPhone: string | null;
   items: {
     productId: number;
     recipeName: string;
@@ -86,6 +88,8 @@ export function parseHistory(value: unknown): OrderRecord[] {
       !integer(order.total, 1) ||
       typeof order.createdAt !== "string" ||
       !Number.isFinite(Date.parse(order.createdAt)) ||
+      !(order.recipientName === undefined || order.recipientName === null || typeof order.recipientName === "string") ||
+      !(order.recipientPhone === undefined || order.recipientPhone === null || typeof order.recipientPhone === "string") ||
       !Array.isArray(order.items) ||
       !order.items.length
     ) {
@@ -124,6 +128,8 @@ export function parseHistory(value: unknown): OrderRecord[] {
       status: order.status,
       total: order.total,
       createdAt: order.createdAt,
+      recipientName: typeof order.recipientName === "string" ? order.recipientName : null,
+      recipientPhone: typeof order.recipientPhone === "string" ? order.recipientPhone : null,
       items,
     };
   });

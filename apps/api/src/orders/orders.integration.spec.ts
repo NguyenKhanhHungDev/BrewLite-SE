@@ -169,7 +169,10 @@ describe.skipIf(!integrationEnabled)(
     const post = (token: string, body: unknown, key?: string) => {
       const req = request(app.getHttpServer()).post('/orders').set('Authorization', `Bearer ${token}`);
       if (key) req.set('Idempotency-Key', key);
-      return req.send(body as object);
+      const payload = body && typeof body === 'object' && !Array.isArray(body)
+        ? { recipientName: 'Integration Customer', recipientPhone: '0901234567', ...(body as Record<string, unknown>) }
+        : body;
+      return req.send(payload as object);
     };
     const item = (productId: number, quantity: number, size: 'S' | 'M' | 'L' = 'M', toppings: string[] = []) =>
       ({ productId, quantity, size, toppings });
@@ -441,7 +444,11 @@ describe.skipIf(!integrationEnabled)(
         const created = await post(a.token, { items: [item(recipe, 1)] }).expect(201);
         const id = created.body.orderId as number;
 
-        await http.get(`/orders/${id}`).set('Authorization', `Bearer ${a.token}`).expect(200);
+        const customerDetail = await http.get(`/orders/${id}`).set('Authorization', `Bearer ${a.token}`).expect(200);
+        expect(customerDetail.body).toMatchObject({
+          recipientName: 'Integration Customer',
+          recipientPhone: '0901234567',
+        });
         await http.get(`/orders/${id}`).set('Authorization', `Bearer ${b.token}`).expect(404);
         await http.get(`/orders/${id}`).set('Authorization', `Bearer ${admin.token}`).expect(200);
 
@@ -455,11 +462,58 @@ describe.skipIf(!integrationEnabled)(
           userEmail: a.email, paymentStatus: null,
           items: [expect.objectContaining({ recipeId: recipe, recipeName: expect.any(String), unitPrice: 25000, subtotal: 25000 })],
         });
-        await http.get(`/admin/orders/${id}`).set('Authorization', `Bearer ${admin.token}`).expect(200);
+        const adminDetail = await http.get(`/admin/orders/${id}`).set('Authorization', `Bearer ${admin.token}`).expect(200);
+        expect(adminDetail.body).toMatchObject({
+          recipientName: 'Integration Customer',
+          recipientPhone: '0901234567',
+        });
 
         // limit is capped at 50, page must be positive.
         await http.get('/admin/orders?limit=51').set('Authorization', `Bearer ${admin.token}`).expect(400);
         await http.get('/admin/orders?page=0').set('Authorization', `Bearer ${admin.token}`).expect(400);
+
+        // Date and status filters are applied to the result set before pagination.
+        const todayInVietnam = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Ho_Chi_Minh',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date());
+        const filtered = await http.get(`/admin/orders?dateFrom=${todayInVietnam}&dateTo=${todayInVietnam}&status=PENDING&page=1&limit=5`)
+          .set('Authorization', `Bearer ${admin.token}`).expect(200);
+        expect(filtered.body).toMatchObject({ page: 1, limit: 5 });
+        expect(filtered.body.data.every((order: { status: string }) => order.status === 'PENDING')).toBe(true);
+        await http.get('/admin/orders?dateFrom=2026-11-30&dateTo=2026-11-01')
+          .set('Authorization', `Bearer ${admin.token}`).expect(400);
+        await http.get('/admin/orders?status=NOT_A_STATUS')
+          .set('Authorization', `Bearer ${admin.token}`).expect(400);
+
+        // Admin can move only the preparation statuses; payment confirmation remains provider-owned.
+        await http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`)
+          .send({ status: 'PAID' }).expect(400);
+        await http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${a.token}`)
+          .send({ status: 'PREPARING' }).expect(403);
+
+        // Only a verified payment can make an order PAID. Once paid, Admin may
+        // advance the three preparation milestones, but cannot skip a step.
+        await prisma.$transaction((tx) => consumeReservation(asTx(tx), id));
+        await http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`)
+          .send({ status: 'READY' }).expect(400);
+
+        // Two admins racing to start preparation must not overwrite each other.
+        const competingUpdates = await Promise.all([
+          http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`).send({ status: 'PREPARING' }),
+          http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`).send({ status: 'PREPARING' }),
+        ]);
+        expect(competingUpdates.map((response) => response.status).sort((a, b) => a - b)).toEqual([200, 409]);
+        await http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`)
+          .send({ status: 'COMPLETED' }).expect(400);
+        await http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`)
+          .send({ status: 'READY' }).expect(200);
+        await http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`)
+          .send({ status: 'COMPLETED' }).expect(200);
+        const completed = await http.get(`/orders/${id}`).set('Authorization', `Bearer ${a.token}`).expect(200);
+        expect(completed.body.status).toBe('COMPLETED');
 
         // /auth/me reports the DB role; demoting takes effect with the same token.
         const me = await http.get('/auth/me').set('Authorization', `Bearer ${admin.token}`).expect(200);
@@ -469,7 +523,7 @@ describe.skipIf(!integrationEnabled)(
       });
 
       // Needs the paymentStatus query param from the shared contract (00_QUY_UOC_CHUNG.md).
-      // listAdminOrders(page, limit) does not filter by paymentStatus yet.
+      // Phat's P03 scope filters by order status and createdAt date range only.
       it.todo('GET /admin/orders?paymentStatus=... filters by latest payment status');
 
       it('GET /orders/me stays an array and tolerates legacy productId rows', async () => {

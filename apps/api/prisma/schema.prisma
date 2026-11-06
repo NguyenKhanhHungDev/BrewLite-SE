@@ -38,6 +38,8 @@ model Order {
   idempotencyKey  String?
   idempotencyHash String?
   expiresAt       DateTime?
+  recipientName   String?
+  recipientPhone  String?
   createdAt       DateTime          @default(now())
   items           OrderItem[]
   payments        Payment[]

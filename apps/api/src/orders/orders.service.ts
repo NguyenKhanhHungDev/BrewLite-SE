@@ -33,7 +33,12 @@ type InputItem = {
   size: Size;
   toppings: Topping[];
 };
-type ParsedOrderInput = { items: InputItem[]; promoCode?: string };
+type ParsedOrderInput = {
+  items: InputItem[];
+  promoCode?: string;
+  recipientName: string;
+  recipientPhone: string;
+};
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -42,9 +47,13 @@ function isObject(value: unknown): value is Record<string, unknown> {
 function parseOrderInput(body: unknown): ParsedOrderInput {
   if (
     !isObject(body) ||
-    Object.keys(body).some((key) => !['items', 'promoCode'].includes(key))
+    Object.keys(body).some(
+      (key) => !['items', 'promoCode', 'recipientName', 'recipientPhone'].includes(key),
+    )
   ) {
-    throw new BadRequestException('Body chỉ được chứa items và promoCode');
+    throw new BadRequestException(
+      'Body chỉ được chứa items, promoCode, recipientName và recipientPhone',
+    );
   }
   if (!Array.isArray(body.items) || body.items.length === 0) {
     throw new BadRequestException('items phải là mảng không rỗng');
@@ -54,6 +63,23 @@ function parseOrderInput(body: unknown): ParsedOrderInput {
     (typeof body.promoCode !== 'string' || body.promoCode.length > 64)
   ) {
     throw new BadRequestException('promoCode phải là chuỗi không quá 64 ký tự');
+  }
+
+  if (typeof body.recipientName !== 'string') {
+    throw new BadRequestException('recipientName là bắt buộc');
+  }
+  const recipientName = body.recipientName.trim();
+  if (recipientName.length < 2 || recipientName.length > 100) {
+    throw new BadRequestException('recipientName phải có từ 2 đến 100 ký tự');
+  }
+  if (typeof body.recipientPhone !== 'string') {
+    throw new BadRequestException('recipientPhone là bắt buộc');
+  }
+  const recipientPhone = body.recipientPhone.trim().replace(/[\s().-]/g, '');
+  if (!/^\+?\d{8,15}$/.test(recipientPhone)) {
+    throw new BadRequestException(
+      'recipientPhone phải có từ 8 đến 15 chữ số, có thể bắt đầu bằng +',
+    );
   }
 
   const items = body.items.map((item: unknown) => {
@@ -100,6 +126,8 @@ function parseOrderInput(body: unknown): ParsedOrderInput {
 
   return {
     items,
+    recipientName,
+    recipientPhone,
     ...(body.promoCode === undefined
       ? {}
       : { promoCode: body.promoCode as string }),
@@ -116,6 +144,22 @@ function normalizeIdempotencyKey(key?: string): string | null {
 }
 
 function hashRequest(input: ParsedOrderInput): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        items: input.items,
+        promoCode: input.promoCode?.trim().toUpperCase() ?? null,
+        recipientName: input.recipientName,
+        recipientPhone: input.recipientPhone,
+      }),
+    )
+    .digest('hex');
+}
+
+// Drafts saved by the previous frontend/API version did not include recipient
+// details in their idempotency hash. Support one safe upgrade for those rows:
+// only when the stored snapshot is empty, and atomically replace the old hash.
+function hashLegacyRequest(input: ParsedOrderInput): string {
   return createHash('sha256')
     .update(
       JSON.stringify({
@@ -168,7 +212,39 @@ export class OrdersService {
         userId,
         idempotencyKey,
       );
-      if (existing) return replayResult(existing, idempotencyHash);
+      if (existing) {
+        if (existing.idempotencyHash === idempotencyHash) {
+          return replayResult(existing, idempotencyHash);
+        }
+        const legacyHash = hashLegacyRequest(input);
+        if (
+          existing.idempotencyHash === legacyHash &&
+          existing.recipientName == null &&
+          existing.recipientPhone == null
+        ) {
+          const upgraded = await this.store.updateLegacyRecipientSnapshot(
+            userId,
+            idempotencyKey,
+            legacyHash,
+            idempotencyHash,
+            input.recipientName,
+            input.recipientPhone,
+          );
+          if (upgraded) {
+            return replayResult(
+              { ...existing, idempotencyHash },
+              idempotencyHash,
+            );
+          }
+          // A concurrent retry may have completed the one-time upgrade first.
+          const latest = await this.store.findOrderByIdempotencyKey(
+            userId,
+            idempotencyKey,
+          );
+          if (latest) return replayResult(latest, idempotencyHash);
+        }
+        return replayResult(existing, idempotencyHash);
+      }
     }
 
     const recipeById = new Map<number, RecipeSnapshot>();
@@ -256,6 +332,8 @@ export class OrdersService {
       total: promotion.payable,
       discount: promotion.discount,
       promoCode: promotion.promoCode,
+      recipientName: input.recipientName,
+      recipientPhone: input.recipientPhone,
       idempotencyKey,
       idempotencyHash,
       items: lines,
@@ -299,7 +377,13 @@ export class OrdersService {
     return order;
   }
 
-  async listAdminOrders(rawPage?: unknown, rawLimit?: unknown) {
+  async listAdminOrders(
+    rawPage?: unknown,
+    rawLimit?: unknown,
+    rawDateFrom?: unknown,
+    rawDateTo?: unknown,
+    rawStatus?: unknown,
+  ) {
     const page = rawPage === undefined ? 1 : Number(rawPage);
     const limit = rawLimit === undefined ? 20 : Number(rawLimit);
     if (!Number.isSafeInteger(page) || page < 1) {
@@ -311,6 +395,46 @@ export class OrdersService {
     if (page > Math.floor(Number.MAX_SAFE_INTEGER / limit)) {
       throw new BadRequestException('page vượt giới hạn');
     }
-    return this.store.listAdminOrders(page, limit);
+
+    const parseVietnamDate = (value: unknown, field: string): Date | null => {
+      if (value === undefined) return null;
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        throw new BadRequestException(`${field} phải có định dạng YYYY-MM-DD`);
+      }
+      const [year, month, day] = value.split('-').map(Number);
+      const calendarDate = new Date(Date.UTC(year, month - 1, day));
+      if (
+        calendarDate.getUTCFullYear() !== year ||
+        calendarDate.getUTCMonth() !== month - 1 ||
+        calendarDate.getUTCDate() !== day
+      ) {
+        throw new BadRequestException(`${field} không phải ngày hợp lệ`);
+      }
+      // The shop operates in Vietnam (UTC+07:00); date-only filters are local days.
+      return new Date(Date.UTC(year, month - 1, day) - 7 * 60 * 60 * 1000);
+    };
+
+    const dateFrom = parseVietnamDate(rawDateFrom, 'dateFrom');
+    const dateToStart = parseVietnamDate(rawDateTo, 'dateTo');
+    if (dateFrom && dateToStart && dateFrom.getTime() > dateToStart.getTime()) {
+      throw new BadRequestException('dateFrom không được sau dateTo');
+    }
+    const dateToExclusive = dateToStart
+      ? new Date(dateToStart.getTime() + 24 * 60 * 60 * 1000)
+      : null;
+
+    let status: string | null = null;
+    if (rawStatus !== undefined) {
+      if (typeof rawStatus !== 'string' || !isOrderStatus(rawStatus)) {
+        throw new BadRequestException('status không được hỗ trợ');
+      }
+      status = rawStatus;
+    }
+
+    return this.store.listAdminOrders(page, limit, {
+      dateFrom,
+      dateToExclusive,
+      status,
+    });
   }
 }

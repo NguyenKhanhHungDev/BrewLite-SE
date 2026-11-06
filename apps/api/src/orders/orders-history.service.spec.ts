@@ -10,6 +10,8 @@ function makeHistoryService() {
         status: 'PAID',
         total: 90000,
         createdAt: new Date('2026-10-26T10:00:00.000Z'),
+        recipientName: null,
+        recipientPhone: null,
         items: [],
       },
       {
@@ -17,6 +19,8 @@ function makeHistoryService() {
         status: 'PENDING',
         total: 45000,
         createdAt: new Date('2026-10-25T10:00:00.000Z'),
+        recipientName: null,
+        recipientPhone: null,
         items: [],
       },
       {
@@ -24,6 +28,8 @@ function makeHistoryService() {
         status: 'PENDING',
         total: 30000,
         createdAt: new Date('2026-10-26T11:00:00.000Z'),
+        recipientName: null,
+        recipientPhone: null,
         items: [],
       },
     ];
