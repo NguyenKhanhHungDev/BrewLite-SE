@@ -9,6 +9,7 @@ describe('Recipe-backed ProductsService', () => {
     price: 35000,
     imageUrl: '/images/products/ca-phe-sua.jpg',
     isActive: true,
+    category: 'COFFEE',
     ingredients: [
       {
         ingredientId: 3,
@@ -32,6 +33,7 @@ describe('Recipe-backed ProductsService', () => {
         name: 'Coffee',
         price: 35000,
         imageUrl: '/images/products/ca-phe-sua.jpg',
+        category: 'COFFEE',
         stock: 8,
         stockBySize: { S: 10, M: 8, L: 6 },
       },

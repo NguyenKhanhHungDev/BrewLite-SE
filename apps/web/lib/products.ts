@@ -1,9 +1,12 @@
+import { isCategory, type Category } from "./menu";
+
 export type Product = {
   id: number;
   name: string;
   price: number;
   imageUrl: string;
   stock: number;
+  category?: Category;
   stockBySize?: Record<"S" | "M" | "L", number>;
 };
 
@@ -34,6 +37,9 @@ export function parseProducts(value: unknown): Product[] {
       item.stock < 0
     )
       throw new Error("Invalid product fields");
+    const category = "category" in item ? item.category : undefined;
+    if (category !== undefined && !isCategory(category))
+      throw new Error("Invalid product category");
     const sizes = "stockBySize" in item ? item.stockBySize : undefined;
     if (
       sizes !== undefined &&
@@ -52,6 +58,7 @@ export function parseProducts(value: unknown): Product[] {
       price: item.price,
       imageUrl: item.imageUrl,
       stock: item.stock,
+      category: category ?? "OTHER",
       ...(sizes
         ? { stockBySize: sizes as Record<"S" | "M" | "L", number> }
         : {}),

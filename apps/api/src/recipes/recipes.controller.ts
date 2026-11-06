@@ -22,6 +22,7 @@ function response(recipe: RecipeRecord) {
     price: recipe.price,
     imageUrl: recipe.imageUrl,
     isActive: recipe.isActive,
+    category: recipe.category,
     ingredients: recipe.ingredients.map(
       ({ ingredientId, quantity, ingredient }) => ({
         ingredientId,

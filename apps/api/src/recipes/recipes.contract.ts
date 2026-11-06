@@ -7,6 +7,7 @@ export interface RecipeRecord {
   price: number;
   imageUrl: string;
   isActive: boolean;
+  category: 'COFFEE' | 'TEA' | 'OTHER';
   ingredients: {
     ingredientId: number;
     quantity: number;

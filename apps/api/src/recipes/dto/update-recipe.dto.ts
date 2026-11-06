@@ -1,9 +1,10 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsInt, IsString,
+  ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsString,
   Matches, Max, Min, ValidateIf, ValidateNested,
 } from 'class-validator';
 import { RecipeIngredientDto } from './create-recipe.dto.js';
+import type { RecipeRecord } from '../recipes.contract.js';
 
 // Undefined means omitted; null must fail validation on PATCH.
 export class UpdateRecipeDto {
@@ -26,6 +27,10 @@ export class UpdateRecipeDto {
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsBoolean()
   isActive?: boolean;
+
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsIn(['COFFEE', 'TEA', 'OTHER'])
+  category?: RecipeRecord['category'];
 
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsArray()

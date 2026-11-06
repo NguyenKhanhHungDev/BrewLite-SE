@@ -1,4 +1,5 @@
 import { isObject } from "./api";
+import { isCategory, type Category } from "./menu";
 
 export type Recipe = {
   id: number;
@@ -6,6 +7,7 @@ export type Recipe = {
   price: number;
   imageUrl: string;
   isActive: boolean;
+  category: Category;
   ingredients: {
     ingredientId: number;
     name: string;
@@ -28,6 +30,7 @@ export function parseRecipes(value: unknown): Recipe[] {
       Number(item.price) <= 0 ||
       typeof item.imageUrl !== "string" ||
       typeof item.isActive !== "boolean" ||
+      !isCategory(item.category) ||
       !Array.isArray(item.ingredients) ||
       !item.ingredients.length
     ) {

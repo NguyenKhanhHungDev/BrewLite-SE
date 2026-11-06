@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useCart } from "@/components/CartProvider";
 import ProductImage from "@/components/ProductImage";
@@ -10,8 +10,17 @@ import { parseProducts } from "@/lib/products";
 import { money, optionText, unitPrice } from "@/lib/pricing";
 
 export default function CartPage() {
-  const { lines, ready, notice, issues, changeQuantity, remove, reconcile } =
-    useCart();
+  const {
+    lines,
+    ready,
+    notice,
+    issues,
+    changeQuantity,
+    remove,
+    reconcile,
+    clear,
+  } = useCart();
+  const confirmClear = useRef<HTMLDialogElement>(null);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(true);
   useEffect(() => {
@@ -53,7 +62,46 @@ export default function CartPage() {
       <div className="bl-page-title">
         <p className="bl-eyebrow">BrewLite</p>
         <h1>Giỏ hàng</h1>
+        {ready && lines.length > 0 && (
+          <button
+            className="bl-text-button"
+            type="button"
+            onClick={() => confirmClear.current?.showModal()}
+          >
+            Xóa tất cả
+          </button>
+        )}
       </div>
+      <dialog
+        ref={confirmClear}
+        className="bl-confirm-dialog"
+        aria-labelledby="clear-cart-title"
+        aria-describedby="clear-cart-description"
+      >
+        <h2 id="clear-cart-title">Xóa toàn bộ giỏ hàng?</h2>
+        <p id="clear-cart-description">Tất cả món trong giỏ sẽ được xóa.</p>
+        <div className="bl-actions">
+          <button
+            className="bl-button bl-button-secondary"
+            type="button"
+            autoFocus
+            onClick={() => confirmClear.current?.close()}
+          >
+            Giữ giỏ
+          </button>
+          <button
+            className="bl-button"
+            type="button"
+            onClick={() => {
+              clear();
+              setError("");
+              confirmClear.current?.close();
+            }}
+          >
+            Xóa tất cả
+          </button>
+        </div>
+      </dialog>
       {!ready ? (
         <p role="status">Đang khôi phục giỏ hàng...</p>
       ) : (

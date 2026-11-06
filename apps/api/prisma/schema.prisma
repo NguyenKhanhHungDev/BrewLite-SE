@@ -96,12 +96,19 @@ model Ingredient {
   orderUses OrderIngredient[]
 }
 
+enum ProductCategory {
+  COFFEE
+  TEA
+  OTHER
+}
+
 model Recipe {
   id          Int                @id @default(autoincrement())
   name        String             @unique
   price       Int
   imageUrl    String
   isActive    Boolean            @default(true)
+  category    ProductCategory    @default(OTHER)
   ingredients RecipeIngredient[]
   orderItems  OrderItem[]
 }
