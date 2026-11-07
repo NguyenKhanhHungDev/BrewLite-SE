@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import PaymentDetails from "./PaymentDetails";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "./AuthProvider";
 import { useCheckout } from "./CheckoutProvider";
@@ -50,6 +51,10 @@ export default function PaymentResult({ orderId }: { orderId: number }) {
   const { request } = useAuth();
   const { syncPayment, storageNotice } = useCheckout();
   const [revision, setRevision] = useState(0);
+  const handleExpired = useCallback(
+    () => setRevision((value) => value + 1),
+    [],
+  );
   const [state, setState] = useState<State>({
     order: null,
     payment: null,
@@ -161,6 +166,20 @@ export default function PaymentResult({ orderId }: { orderId: number }) {
           {storageNotice}
         </p>
       )}
+      <PaymentDetails
+        orderId={orderId}
+        revision={
+          revision * 10 +
+          [
+            "PENDING",
+            "SUCCESS",
+            "FAILED",
+            "CANCELLED",
+            "RECONCILIATION_REQUIRED",
+          ].indexOf(state.payment?.latestPayment?.status ?? "")
+        }
+        onExpired={handleExpired}
+      />
       <div className="bl-flow-grid">
         <section className="bl-panel" aria-busy={state.loading}>
           <h2>Đơn #{orderId}</h2>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { paidStatuses, statusNames, type OrderRecord } from "@/lib/orders";
 import { money, optionText } from "@/lib/pricing";
 
@@ -19,6 +20,9 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
           {order.status}
         </span>
       </div>
+      <Link href={`/payment/result?orderId=${order.id}`}>
+        Xem thông tin thanh toán
+      </Link>
       <p>{statusNames[order.status]}</p>
       {order.items.map((item, index) => (
         <div className="bl-summary-line" key={`${item.productId}-${index}`}>

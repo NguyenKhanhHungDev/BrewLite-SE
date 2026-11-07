@@ -19,6 +19,7 @@ export default function AuthForm() {
       "/admin/ingredients",
       "/admin/recipes",
       "/admin/orders",
+      "/admin/payments",
     ].includes(requested) ||
     /^\/confirmation\/\d+$/.test(requested) ||
     /^\/payment\/result\?orderId=[1-9]\d*$/.test(requested)
