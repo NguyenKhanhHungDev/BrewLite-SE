@@ -20,6 +20,9 @@ model Product {
 model User {
   id            Int     @id @default(autoincrement())
   email         String  @unique
+  name          String? @db.VarChar(100)
+  phone         String? @db.VarChar(16)
+  sessionVersion Int    @default(0)
   passwordHash  String
   role          String  @default("CUSTOMER")
   loyaltyPoints Int     @default(0)

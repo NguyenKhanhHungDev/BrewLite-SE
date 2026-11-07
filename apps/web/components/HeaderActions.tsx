@@ -20,6 +20,11 @@ export default function HeaderActions() {
       <Link href="/history" className="bl-menu-link">
         Đơn hàng
       </Link>
+      {session && (
+        <Link href="/account" className="bl-menu-link">
+          Tài khoản
+        </Link>
+      )}
       {session ? (
         <button type="button" className="bl-menu-link" onClick={logout}>
           Đăng xuất
