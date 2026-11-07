@@ -3,17 +3,29 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCart } from "@/components/CartProvider";
+import { useToast } from "@/components/Toast";
 import ProductImage from "@/components/ProductImage";
 import CartSummary from "@/components/CartSummary";
 import { requestJson } from "@/lib/api";
 import { parseProducts } from "@/lib/products";
 import { money, optionText, unitPrice } from "@/lib/pricing";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  PlusIcon,
+  MinusIcon,
+  TrashIcon,
+  ShoppingBagIcon,
+  ExclamationIcon,
+} from "@/components/Icons";
 
 export default function CartPage() {
-  const { lines, ready, notice, issues, changeQuantity, remove, reconcile } =
+  const { lines, ready, notice, issues, changeQuantity, remove, add, reconcile } =
     useCart();
+  const toast = useToast();
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(true);
+
   useEffect(() => {
     if (!ready) return;
     let disposed = false;
@@ -45,120 +57,168 @@ export default function CartPage() {
       );
     }
   }
+
+  function handleRemove(line: (typeof lines)[0]) {
+    remove(line.key);
+    setError("");
+    toast.undo(`Đã xóa ${line.product.name} (${line.size}) khỏi giỏ hàng.`, () => {
+      add(line.product, line.size, line.toppings, line.quantity);
+    });
+  }
+
+  const count = lines.reduce((sum, item) => sum + item.quantity, 0);
+
   return (
     <main className="bl-flow-wrap">
-      <Link href="/" className="bl-detail-back">
-        ← Tiếp tục chọn món
-      </Link>
+      <nav aria-label="Đường dẫn trang">
+        <Link href="/" className="bl-detail-back">
+          <ArrowLeftIcon size={18} />
+          <span>Tiếp tục chọn món</span>
+        </Link>
+      </nav>
+
       <div className="bl-page-title">
-        <p className="bl-eyebrow">BrewLite</p>
-        <h1>Giỏ hàng</h1>
+        <span className="bl-eyebrow">Đặt món nhận tại quầy</span>
+        <h1>Giỏ hàng của bạn</h1>
+        {ready && lines.length > 0 && (
+          <p className="bl-muted">
+            Bạn đang có <strong>{count}</strong> ly trong giỏ hàng. Kiểm tra kỹ trước khi tiến hành thanh toán.
+          </p>
+        )}
       </div>
+
       {!ready ? (
-        <p role="status">Đang khôi phục giỏ hàng...</p>
+        <div className="bl-menu-state" role="status">
+          <p>Đang chuẩn bị giỏ hàng...</p>
+        </div>
       ) : (
         <>
           {notice && (
-            <p className="bl-alert" role="status">
+            <div className="bl-alert bl-alert-info" role="status">
               {notice}
-            </p>
+            </div>
           )}
           {error && (
-            <p className="bl-alert bl-alert-error" role="alert">
-              {error}
-            </p>
+            <div className="bl-alert bl-alert-error" role="alert">
+              <ExclamationIcon size={18} />
+              <span>{error}</span>
+            </div>
           )}
           {issues.map((issue) => (
-            <p className="bl-alert bl-alert-error" role="alert" key={issue}>
-              {issue}
-            </p>
+            <div className="bl-alert bl-alert-error" role="alert" key={issue}>
+              <ExclamationIcon size={18} />
+              <span>{issue}</span>
+            </div>
           ))}
+
           {!lines.length ? (
             <section className="bl-panel bl-empty">
-              <h2>Giỏ hàng trống</h2>
-              <p>Chọn món yêu thích từ thực đơn.</p>
-              <Link href="/" className="bl-button">
-                Xem Menu
+              <div className="bl-empty-cart-visual" aria-hidden="true">
+                <ShoppingBagIcon size={56} strokeWidth={1.3} />
+              </div>
+              <h2>Giỏ hàng chưa có món nào</h2>
+              <p>Khám phá menu đa dạng từ cà phê pha phin truyền thống đến trà trái cây thanh mát.</p>
+              <Link href="/" className="bl-button bl-button-primary">
+                <span>Khám phá thực đơn</span>
+                <ArrowRightIcon size={18} />
               </Link>
             </section>
           ) : (
             <div className="bl-flow-grid">
+              {/* Left Column: Items List */}
               <div className="bl-cart-list">
-                {lines.map((line) => (
-                  <article className="bl-cart-line" key={line.key}>
-                    <div className="bl-cart-image">
-                      <ProductImage
-                        src={line.product.imageUrl}
-                        name={line.product.name}
-                      />
-                    </div>
-                    <div className="bl-cart-content">
-                      <h2>{line.product.name}</h2>
-                      <p>{optionText(line.size, line.toppings)}</p>
-                      <p>
-                        Đơn giá:{" "}
-                        {money(
-                          unitPrice(
-                            line.product.price,
-                            line.size,
-                            line.toppings,
-                          ),
-                        )}
-                      </p>
-                      <div className="bl-cart-bottom">
-                        <div className="bl-quantity-control">
+                {lines.map((line) => {
+                  const linePrice = unitPrice(
+                    line.product.price,
+                    line.size,
+                    line.toppings,
+                  );
+                  const subtotal = linePrice * line.quantity;
+
+                  return (
+                    <article className="bl-cart-line" key={line.key}>
+                      <div className="bl-cart-image">
+                        <ProductImage
+                          src={line.product.imageUrl}
+                          name={line.product.name}
+                        />
+                      </div>
+                      <div className="bl-cart-content">
+                        <div className="bl-cart-line-header">
+                          <h2>{line.product.name}</h2>
                           <button
                             type="button"
-                            disabled={line.quantity <= 1}
-                            aria-label={`Giảm số ly ${line.product.name} ${line.size}`}
-                            onClick={() => update(line.key, line.quantity - 1)}
+                            className="bl-btn-remove-line"
+                            onClick={() => handleRemove(line)}
+                            aria-label={`Xóa ${line.product.name} size ${line.size}`}
+                            title="Xóa món"
                           >
-                            −
-                          </button>
-                          <span aria-label="Số ly">{line.quantity}</span>
-                          <button
-                            type="button"
-                            aria-label={`Tăng số ly ${line.product.name} ${line.size}`}
-                            onClick={() => update(line.key, line.quantity + 1)}
-                          >
-                            +
+                            <TrashIcon size={18} />
                           </button>
                         </div>
-                        <strong>
-                          {money(
-                            unitPrice(
-                              line.product.price,
-                              line.size,
-                              line.toppings,
-                            ) * line.quantity,
-                          )}
-                        </strong>
+
+                        <p className="bl-cart-option-tag">
+                          {optionText(line.size, line.toppings)}
+                        </p>
+
+                        <p className="bl-cart-unit-price">
+                          Đơn giá: {money(linePrice)}
+                        </p>
+
+                        <div className="bl-cart-bottom">
+                          <div
+                            className="bl-quantity-stepper"
+                            role="group"
+                            aria-label={`Số lượng cho ${line.product.name}`}
+                          >
+                            <button
+                              type="button"
+                              className="bl-stepper-btn"
+                              disabled={line.quantity <= 1}
+                              aria-label={`Giảm số ly ${line.product.name} ${line.size}`}
+                              onClick={() => update(line.key, line.quantity - 1)}
+                            >
+                              <MinusIcon size={18} />
+                            </button>
+                            <span className="bl-stepper-val" aria-label="Số ly">
+                              {line.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              className="bl-stepper-btn"
+                              aria-label={`Tăng số ly ${line.product.name} ${line.size}`}
+                              onClick={() => update(line.key, line.quantity + 1)}
+                            >
+                              <PlusIcon size={18} />
+                            </button>
+                          </div>
+                          <strong className="bl-cart-line-total">
+                            {money(subtotal)}
+                          </strong>
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        className="bl-text-button"
-                        onClick={() => {
-                          remove(line.key);
-                          setError("");
-                        }}
-                      >
-                        Xóa
-                      </button>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
-              <div>
-                <CartSummary lines={lines} />
+
+              {/* Right Column: Order Summary & Checkout Action */}
+              <div className="bl-cart-sidebar">
+                <CartSummary lines={lines} showBreakdown />
+
                 {checking ? (
-                  <p role="status">Đang kiểm tra giá và tồn kho...</p>
+                  <div className="bl-checking-box" role="status">
+                    <span className="bl-spinner-dot" />
+                    <span>Đang kiểm tra tồn kho tại quầy...</span>
+                  </div>
                 ) : issues.length || error ? (
-                  <p className="bl-muted">
-                    Hãy xử lý lỗi trong giỏ trước khi thanh toán.
+                  <p className="bl-muted bl-checkout-blocked-note">
+                    Vui lòng điều chỉnh số lượng hoặc bỏ bớt món vượt tồn kho để tiếp tục thanh toán.
                   </p>
                 ) : (
-                  <Link href="/checkout" className="bl-button bl-full">
-                    Thanh toán
+                  <Link href="/checkout" className="bl-button bl-button-primary bl-full bl-btn-checkout">
+                    <span>Tiến hành thanh toán</span>
+                    <ArrowRightIcon size={19} />
                   </Link>
                 )}
               </div>

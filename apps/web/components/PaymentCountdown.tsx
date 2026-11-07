@@ -1,46 +1,52 @@
 "use client";
 
+import React from "react";
 import { useCountdown } from "@/lib/countdown";
+import { ClockIcon, ExclamationIcon } from "./Icons";
 
 export default function PaymentCountdown({
   expiresAt,
+  isPending = true,
   onExpire,
-  isPending,
 }: {
-  expiresAt: string | null | undefined;
+  expiresAt: string;
+  isPending?: boolean;
   onExpire?: () => void;
-  isPending: boolean;
 }) {
-  const { minutes, seconds, isExpired, hasDeadline } = useCountdown(
-    expiresAt,
-    onExpire,
-  );
+  const { isExpired, minutes, seconds, remainingSeconds } = useCountdown(expiresAt, onExpire);
+  const formattedTime = `${minutes}:${seconds}`;
+  const totalSeconds = remainingSeconds;
 
-  if (!hasDeadline || !isPending) return null;
+  if (!isPending) return null;
+
+  const isUrgent = !isExpired && totalSeconds < 180; // under 3 minutes
 
   return (
     <div
-      className={`bl-countdown-box ${isExpired ? "bl-countdown-expired" : ""}`}
+      className={`bl-countdown-box ${isExpired ? "bl-countdown-expired" : isUrgent ? "bl-countdown-urgent" : ""}`}
       role="timer"
       aria-live="polite"
-      style={{
-        margin: "0.75rem 0",
-        padding: "0.5rem 0.75rem",
-        borderRadius: "6px",
-        backgroundColor: isExpired ? "#fef2f2" : "#f0fdf4",
-        border: `1px solid ${isExpired ? "#f87171" : "#86efac"}`,
-        fontSize: "0.9rem",
-      }}
+      aria-label={
+        isExpired
+          ? "Thời gian giữ đơn đã hết hạn"
+          : `Hạn thanh toán còn ${formattedTime}`
+      }
     >
-      <span style={{ color: "#374151" }}>Hạn thanh toán đơn hàng: </span>
-      {isExpired ? (
-        <span style={{ color: "#b91c1c", fontWeight: 600 }}>
-          Hết hạn thanh toán — Hệ thống đang kiểm tra trạng thái cuối...
+      <div className="bl-countdown-icon-wrap" aria-hidden="true">
+        {isExpired ? <ExclamationIcon size={18} /> : <ClockIcon size={18} />}
+      </div>
+      <div className="bl-countdown-content">
+        <span className="bl-countdown-label">
+          {isExpired ? "Đơn hàng đã hết hạn thanh toán" : "Thời gian giữ đơn tại quầy:"}
         </span>
-      ) : (
-        <strong style={{ color: "#15803d", fontVariantNumeric: "tabular-nums" }}>
-          {minutes}:{seconds}
+        <strong className="bl-countdown-digits">
+          {isExpired ? "00:00" : formattedTime}
         </strong>
+      </div>
+      {!isExpired && (
+        <span className="bl-countdown-hint">
+          {isUrgent ? "Sắp hết hạn! Vui lòng thanh toán sớm." : "Được giữ trong 15 phút"}
+        </span>
       )}
     </div>
   );

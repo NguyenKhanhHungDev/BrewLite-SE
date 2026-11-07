@@ -1,50 +1,86 @@
+import React from "react";
 import type { Product } from "@/lib/products";
 import Link from "next/link";
 import ProductImage from "./ProductImage";
+import { ArrowRightIcon, SparklesIcon, CoffeeIcon, ClockIcon } from "./Icons";
 
 export default function MenuHero({ product }: { product?: Product }) {
   return (
     <section className="bl-hero" aria-labelledby="hero-heading">
       <div className="bl-hero-content">
-        <span className="bl-eyebrow">
-          Thoughtfully brewed • Ready for pickup
-        </span>
+        <div className="bl-hero-badge">
+          <SparklesIcon size={16} className="bl-badge-icon" />
+          <span>Thủ công & Rang mộc nguyên bản • Nhận nhanh tại quầy</span>
+        </div>
+
         <h1 id="hero-heading">
-          A quiet moment,
+          Chắt lọc từng giọt đậm đà,
           <br />
-          <em>rich in flavor.</em>
+          <em>đánh thức trọn vẹn vị giác.</em>
         </h1>
-        <p>Freshly brewed every day. Pick up at the counter.</p>
-        <a className="bl-button" href="#menu">
-          Explore drinks
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="m9 5 7 7-7 7" />
-          </svg>
-        </a>
+
+        <p>
+          Mỗi ly đồ uống tại BrewLite là sự hòa quyện giữa hạt cà phê cao nguyên tuyển chọn cùng công thức pha chế thủ công tỉ mỉ, sẵn sàng phục vụ bạn ngay khi đến quầy.
+        </p>
+
+        <div className="bl-hero-actions">
+          <a className="bl-button bl-button-primary bl-hero-cta" href="#menu">
+            <span>Đặt món ngay</span>
+            <ArrowRightIcon size={18} />
+          </a>
+          <a className="bl-button bl-button-ghost" href="#highlights">
+            <span>Món gợi ý hôm nay</span>
+          </a>
+        </div>
+
+        <div className="bl-hero-features" aria-label="Đặc điểm phục vụ">
+          <div className="bl-hero-feat-item">
+            <div className="bl-feat-icon-wrap" aria-hidden="true">
+              <CoffeeIcon size={18} />
+            </div>
+            <div>
+              <strong>Hương vị mộc</strong>
+              <small>Robusta & Arabica đậm chất</small>
+            </div>
+          </div>
+          <div className="bl-hero-feat-item">
+            <div className="bl-feat-icon-wrap" aria-hidden="true">
+              <ClockIcon size={18} />
+            </div>
+            <div>
+              <strong>Tiết kiệm thời gian</strong>
+              <small>Nhận tại quầy không chờ đợi</small>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="bl-hero-image">
+
+      <div className="bl-hero-visual">
+        <div className="bl-steam-container" aria-hidden="true">
+          <span className="bl-steam-line bl-steam-1" />
+          <span className="bl-steam-line bl-steam-2" />
+          <span className="bl-steam-line bl-steam-3" />
+        </div>
+
         {product ? (
           <Link
             href={`/products/${product.id}`}
             className="bl-hero-product-link"
-            aria-label={`Xem chi tiết ${product.name}`}
+            aria-label={`Khám phá món đặc trưng: ${product.name}`}
           >
-            <ProductImage src={product.imageUrl} name={product.name} hero />
+            <div className="bl-hero-image-wrap">
+              <ProductImage src={product.imageUrl} name={product.name} hero />
+            </div>
             <div className="bl-hero-note">
-              <span aria-hidden="true">✦</span>
+              <span className="bl-hero-note-badge" aria-hidden="true">
+                <SparklesIcon size={16} />
+              </span>
               <div>
-                <small>BrewLite drinks</small>
+                <small>Món nổi bật hôm nay</small>
                 <strong>{product.name}</strong>
+                <span className="bl-hero-note-price">
+                  {product.price.toLocaleString("vi-VN")} VND
+                </span>
               </div>
             </div>
           </Link>
@@ -54,20 +90,13 @@ export default function MenuHero({ product }: { product?: Product }) {
             <svg viewBox="0 0 240 240" fill="none">
               <path
                 d="M66 98h108v39a47 47 0 0 1-47 47h-14a47 47 0 0 1-47-47V98Z"
-                fill="#f7f3ed"
+                fill="currentColor"
               />
               <path
                 d="M174 108h10a24 24 0 1 1 0 48h-13"
-                stroke="#f7f3ed"
+                stroke="currentColor"
                 strokeWidth="9"
               />
-              <path
-                d="M92 66c-12-15 12-20 0-36m30 36c-12-15 12-20 0-36m30 36c-12-15 12-20 0-36"
-                stroke="#d7bda5"
-                strokeWidth="5"
-                strokeLinecap="round"
-              />
-              <ellipse cx="120" cy="196" rx="74" ry="5" fill="#d7bda5" />
             </svg>
           </div>
         )}
