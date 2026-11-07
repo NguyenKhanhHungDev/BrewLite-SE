@@ -12,6 +12,7 @@ interface HistoryRow {
   status: string;
   total: number;
   createdAt: Date;
+  expiresAt: Date | null;
   recipeId: number | null;
   recipeName: string | null;
   productId: number | null;
@@ -40,7 +41,7 @@ export class OrdersHistoryPrismaAdapter
   async findMine(userId: number): Promise<OrderHistoryRecord[]> {
     const rows = await this.prisma.$queryRaw<HistoryRow[]>`
       SELECT
-        o."id" AS "orderId", o."status", o."total", o."createdAt",
+        o."id" AS "orderId", o."status", o."total", o."createdAt", o."expiresAt",
         oi."recipeId", oi."recipeName", oi."productId",
         product."name" AS "productName",
         oi."quantity", oi."size", oi."toppings", oi."unitPrice", oi."subtotal"
@@ -61,6 +62,7 @@ export class OrdersHistoryPrismaAdapter
           status: row.status,
           total: Number(row.total),
           createdAt: row.createdAt,
+          expiresAt: row.expiresAt,
           items: [],
         };
         orders.set(id, order);

@@ -19,6 +19,7 @@ export type OrderRecord = {
   status: OrderStatus;
   total: number;
   createdAt: string;
+  expiresAt: string | null;
   items: {
     productId: number;
     recipeName: string;
@@ -124,6 +125,11 @@ export function parseHistory(value: unknown): OrderRecord[] {
       status: order.status,
       total: order.total,
       createdAt: order.createdAt,
+      expiresAt:
+        typeof order.expiresAt === "string" &&
+        Number.isFinite(Date.parse(order.expiresAt))
+          ? order.expiresAt
+          : null,
       items,
     };
   });

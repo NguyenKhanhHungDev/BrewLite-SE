@@ -3,6 +3,7 @@ export interface OrderHistoryRecord {
   status: string;
   total: number;
   createdAt: Date;
+  expiresAt: Date | null;
   items: Array<{
     recipeId: number | null;
     recipeName: string;

@@ -72,6 +72,46 @@ export interface PendingZalopayAttempt {
   amount: number;
 }
 
+export interface OrderPaymentAttemptItem {
+  paymentId: number;
+  orderId: number;
+  provider: string;
+  transactionRef: string | null;
+  providerTransactionId: string | null;
+  amount: number;
+  method: string;
+  status: string;
+  creationStatus?: string;
+  paidAt: Date | null;
+  createdAt: Date;
+}
+
+export interface AdminReconciliationItem {
+  paymentId: number;
+  orderId: number;
+  orderStatus: string;
+  userEmail: string;
+  userId: number | null;
+  amount: number;
+  provider: string;
+  method: string;
+  status: string;
+  creationStatus: string;
+  transactionRef: string | null;
+  providerTransactionId: string | null;
+  paidAt: Date | null;
+  createdAt: Date;
+  lastQueriedAt: Date | null;
+}
+
+export interface AdminReconciliationPage {
+  data: AdminReconciliationItem[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 export interface PaymentOrdersStore {
   markZalopayCreation(
     paymentId: number,
@@ -90,6 +130,14 @@ export interface PaymentOrdersStore {
     userId: number,
     orderId: number,
   ): Promise<OrderPaymentStatusResult>;
+  getOrderPaymentHistory?(
+    userId: number,
+    orderId: number,
+  ): Promise<OrderPaymentAttemptItem[]>;
+  listReconciliationPayments?(
+    page: number,
+    limit: number,
+  ): Promise<AdminReconciliationPage>;
 }
 
 export const PAYMENT_ORDERS_STORE = Symbol('PAYMENT_ORDERS_STORE');

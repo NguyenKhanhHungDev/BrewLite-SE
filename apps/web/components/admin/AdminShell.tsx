@@ -90,6 +90,7 @@ function AdminAccess({
           ["/admin/ingredients", "Nguyên liệu"],
           ["/admin/recipes", "Công thức"],
           ["/admin/orders", "Đơn hàng"],
+          ["/admin/payments", "Đối soát GD"],
         ].map(([href, label]) => (
           <Link
             key={href}

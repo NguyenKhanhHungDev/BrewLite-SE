@@ -1,4 +1,4 @@
-﻿import 'dotenv/config';
+import 'dotenv/config';
 import { ZalopayService } from './zalopay.service.js';
 import {
   BadRequestException,
@@ -16,10 +16,13 @@ import {
   releaseReservation,
 } from '../orders/orders.inventory.js';
 import type {
+  AdminReconciliationItem,
+  AdminReconciliationPage,
   ApplyZalopayResolutionInput,
   ApplyZalopayResolutionResult,
   ClaimZalopayAttemptInput,
   ClaimZalopayAttemptResult,
+  OrderPaymentAttemptItem,
   OrderPaymentStatusResult,
   PaymentOrdersStore,
   PendingZalopayAttempt,
@@ -546,6 +549,97 @@ export class PaymentsPrismaAdapter
             creationStatus: latestPayment.creationStatus,
           }
         : null,
+    };
+  }
+
+  async getOrderPaymentHistory(
+    userId: number,
+    orderId: number,
+  ): Promise<OrderPaymentAttemptItem[]> {
+    const order = await this.db.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, userId: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+    if (order.userId !== userId) {
+      throw new ForbiddenException('Order does not belong to current user');
+    }
+
+    const rows = await this.db.payment.findMany({
+      where: { orderId: order.id },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+
+    return rows.map((r) => ({
+      paymentId: r.id,
+      orderId: r.orderId,
+      provider: r.provider,
+      transactionRef: r.transactionRef,
+      providerTransactionId: r.providerTransactionId,
+      amount: r.amount,
+      method: r.method,
+      status: r.status,
+      creationStatus: r.creationStatus,
+      paidAt: r.paidAt,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async listReconciliationPayments(
+    page: number,
+    limit: number,
+  ): Promise<AdminReconciliationPage> {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.max(1, Math.min(50, limit));
+    const offset = (safePage - 1) * safeLimit;
+
+    const [total, rows] = await Promise.all([
+      this.db.payment.count({
+        where: { status: 'RECONCILIATION_REQUIRED' },
+      }),
+      this.db.payment.findMany({
+        where: { status: 'RECONCILIATION_REQUIRED' },
+        include: {
+          order: {
+            select: {
+              status: true,
+              user: { select: { email: true } },
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: offset,
+        take: safeLimit,
+      }),
+    ]);
+
+    const data: AdminReconciliationItem[] = rows.map((r) => ({
+      paymentId: r.id,
+      orderId: r.orderId,
+      orderStatus: r.order.status,
+      userEmail: r.order.user?.email ?? '',
+      userId: r.userId,
+      amount: r.amount,
+      provider: r.provider,
+      method: r.method,
+      status: r.status,
+      creationStatus: r.creationStatus,
+      transactionRef: r.transactionRef,
+      providerTransactionId: r.providerTransactionId,
+      paidAt: r.paidAt,
+      createdAt: r.createdAt,
+      lastQueriedAt: r.lastQueriedAt,
+    }));
+
+    return {
+      data,
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit),
     };
   }
 

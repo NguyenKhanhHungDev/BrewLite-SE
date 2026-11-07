@@ -297,4 +297,102 @@ describe('ZalopayService & PaymentsService (05_THANG Spec)', () => {
       service.createZalopayPayment(1, 'same-key', { orderId: 99 }),
     ).rejects.toThrow(ConflictException);
   });
+
+  it('T01: retrieves full payment history for an order', async () => {
+    const mockHistory = [
+      {
+        paymentId: 102,
+        orderId: 5,
+        provider: 'ZALOPAY',
+        transactionRef: '261104_BREW_5_102',
+        providerTransactionId: '98765',
+        amount: 35000,
+        method: 'ZALOPAY',
+        status: 'SUCCESS',
+        creationStatus: 'READY',
+        paidAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        paymentId: 101,
+        orderId: 5,
+        provider: 'ZALOPAY',
+        transactionRef: '261104_BREW_5_101',
+        providerTransactionId: null,
+        amount: 35000,
+        method: 'ZALOPAY',
+        status: 'FAILED',
+        creationStatus: 'READY',
+        paidAt: null,
+        createdAt: new Date(Date.now() - 300_000),
+      },
+    ];
+
+    const store: PaymentOrdersStore = {
+      markZalopayCreation: vi.fn(),
+      claimZalopayAttempt: vi.fn(),
+      saveZalopayPaymentUrl: vi.fn(),
+      applyZalopayResolution: vi.fn(),
+      listPendingZalopayAttempts: async () => [],
+      getOrderPaymentStatus: vi.fn(),
+      getOrderPaymentHistory: vi.fn(async () => mockHistory),
+    };
+
+    const service = new PaymentsService(store, new ZalopayService());
+    const res = await service.getOrderPaymentHistory(1, 5);
+    expect(res).toEqual(mockHistory);
+    expect(store.getOrderPaymentHistory).toHaveBeenCalledWith(1, 5);
+
+    // Rejects invalid input
+    await expect(service.getOrderPaymentHistory(0, 5)).rejects.toThrow();
+    await expect(service.getOrderPaymentHistory(1, -1)).rejects.toThrow(BadRequestException);
+  });
+
+  it('T02: lists reconciliation required payments with pagination validation', async () => {
+    const mockPage = {
+      data: [
+        {
+          paymentId: 201,
+          orderId: 15,
+          orderStatus: 'PENDING',
+          userEmail: 'cust@test.com',
+          userId: 3,
+          amount: 50000,
+          provider: 'ZALOPAY',
+          method: 'ZALOPAY',
+          status: 'RECONCILIATION_REQUIRED',
+          creationStatus: 'READY',
+          transactionRef: '261104_BREW_15_201',
+          providerTransactionId: null,
+          paidAt: null,
+          createdAt: new Date(),
+          lastQueriedAt: new Date(),
+        },
+      ],
+      page: 1,
+      limit: 20,
+      total: 1,
+      totalPages: 1,
+    };
+
+    const store: PaymentOrdersStore = {
+      markZalopayCreation: vi.fn(),
+      claimZalopayAttempt: vi.fn(),
+      saveZalopayPaymentUrl: vi.fn(),
+      applyZalopayResolution: vi.fn(),
+      listPendingZalopayAttempts: async () => [],
+      getOrderPaymentStatus: vi.fn(),
+      listReconciliationPayments: vi.fn(async () => mockPage),
+    };
+
+    const service = new PaymentsService(store, new ZalopayService());
+    const res = await service.listReconciliationPayments(1, 20);
+    expect(res).toEqual(mockPage);
+    expect(store.listReconciliationPayments).toHaveBeenCalledWith(1, 20);
+
+    // Validate page/limit bounds
+    await expect(service.listReconciliationPayments(0, 20)).rejects.toThrow(BadRequestException);
+    await expect(service.listReconciliationPayments(1, 0)).rejects.toThrow(BadRequestException);
+    await expect(service.listReconciliationPayments(1, 51)).rejects.toThrow(BadRequestException);
+  });
 });

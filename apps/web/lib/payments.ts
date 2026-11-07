@@ -145,6 +145,7 @@ export function parsePaymentLink(value: unknown, orderId: number) {
 export type PaymentOrder = {
   id: number;
   total: number;
+  expiresAt: string | null;
   items: {
     name: string;
     quantity: number;
@@ -154,6 +155,62 @@ export type PaymentOrder = {
     subtotal: number;
   }[];
 };
+
+export type PaymentAttempt = {
+  paymentId: number;
+  orderId: number;
+  provider: string;
+  transactionRef: string | null;
+  providerTransactionId: string | null;
+  amount: number;
+  method: string;
+  status: string;
+  creationStatus?: string;
+  paidAt: string | null;
+  createdAt: string;
+};
+
+export function parsePaymentHistory(value: unknown): PaymentAttempt[] {
+  if (!Array.isArray(value)) {
+    throw new Error("Dữ liệu lịch sử giao dịch không hợp lệ.");
+  }
+  return value.map((item: unknown) => {
+    if (
+      !isObject(item) ||
+      !positive(item.paymentId) ||
+      !positive(item.orderId) ||
+      !positive(item.amount) ||
+      typeof item.provider !== "string" ||
+      typeof item.status !== "string" ||
+      typeof item.createdAt !== "string" ||
+      !Number.isFinite(Date.parse(item.createdAt))
+    ) {
+      throw new Error("Chi tiết lịch sử thanh toán không hợp lệ.");
+    }
+    return {
+      paymentId: item.paymentId,
+      orderId: item.orderId,
+      provider: item.provider,
+      transactionRef:
+        typeof item.transactionRef === "string" ? item.transactionRef : null,
+      providerTransactionId:
+        typeof item.providerTransactionId === "string"
+          ? item.providerTransactionId
+          : null,
+      amount: item.amount,
+      method: typeof item.method === "string" ? item.method : "ZALOPAY",
+      status: item.status,
+      creationStatus:
+        typeof item.creationStatus === "string" ? item.creationStatus : undefined,
+      paidAt:
+        typeof item.paidAt === "string" &&
+        Number.isFinite(Date.parse(item.paidAt))
+          ? item.paidAt
+          : null,
+      createdAt: item.createdAt,
+    };
+  });
+}
 
 export function parsePaymentOrder(
   value: unknown,
@@ -203,5 +260,14 @@ export function parsePaymentOrder(
       subtotal: item.subtotal,
     };
   });
-  return { id: orderId, total: value.total, items };
+  return {
+    id: orderId,
+    total: value.total,
+    expiresAt:
+      typeof value.expiresAt === "string" &&
+      Number.isFinite(Date.parse(value.expiresAt))
+        ? value.expiresAt
+        : null,
+    items,
+  };
 }

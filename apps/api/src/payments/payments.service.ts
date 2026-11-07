@@ -1,4 +1,4 @@
-﻿import { createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -347,6 +347,38 @@ export class PaymentsService {
     }
 
     return currentStatus;
+  }
+
+  async getOrderPaymentHistory(userId: unknown, rawOrderId: unknown) {
+    if (!Number.isSafeInteger(userId) || Number(userId) <= 0) {
+      throw new UnauthorizedException('JWT required');
+    }
+    const orderId = Number(rawOrderId);
+    if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+      throw new BadRequestException('orderId must be a positive integer');
+    }
+
+    if (!this.ordersStore.getOrderPaymentHistory) {
+      return [];
+    }
+    return this.ordersStore.getOrderPaymentHistory(Number(userId), orderId);
+  }
+
+  async listReconciliationPayments(pageRaw?: unknown, limitRaw?: unknown) {
+    const page = pageRaw !== undefined ? Number(pageRaw) : 1;
+    const limit = limitRaw !== undefined ? Number(limitRaw) : 20;
+
+    if (!Number.isSafeInteger(page) || page < 1) {
+      throw new BadRequestException('page phải là số nguyên dương >= 1');
+    }
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
+      throw new BadRequestException('limit phải nằm trong khoảng 1..50');
+    }
+
+    if (!this.ordersStore.listReconciliationPayments) {
+      return { data: [], page, limit, total: 0, totalPages: 0 };
+    }
+    return this.ordersStore.listReconciliationPayments(page, limit);
   }
 
   async reconcilePendingZalopayBatch(limit = 50): Promise<number> {

@@ -68,6 +68,23 @@ export class PaymentsController {
     return this.paymentsService.getOrderPaymentStatus(userId, Number(orderId));
   }
 
+  @Get(':orderId/history')
+  @UseGuards(JwtAuthGuard)
+  async getOrderPaymentHistory(
+    @Req()
+    request: Request & {
+      user?: { id?: number; userId?: number; sub?: number };
+    },
+    @Param('orderId') orderId: string,
+  ) {
+    const userId =
+      request.user?.id ?? request.user?.userId ?? request.user?.sub;
+    if (typeof userId !== 'number') {
+      throw new UnauthorizedException('JWT required');
+    }
+    return this.paymentsService.getOrderPaymentHistory(userId, Number(orderId));
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   rejectLegacyMockPayment() {

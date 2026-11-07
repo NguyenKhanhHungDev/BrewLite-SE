@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "./AuthProvider";
 import { useCheckout } from "./CheckoutProvider";
+import PaymentCountdown from "./PaymentCountdown";
+import PaymentHistory from "./PaymentHistory";
 import { ApiError } from "@/lib/api";
 import { money, optionText, type Size, type Topping } from "@/lib/pricing";
 import {
@@ -174,6 +176,13 @@ export default function PaymentResult({ orderId }: { orderId: number }) {
                 </span>
               </p>
             )}
+            {state.order?.expiresAt && (
+              <PaymentCountdown
+                expiresAt={state.order.expiresAt}
+                isPending={view === "pending"}
+                onExpire={() => setRevision((value) => value + 1)}
+              />
+            )}
             {state.loading ? (
               <p role="status">Đang kiểm tra thanh toán...</p>
             ) : state.error ? (
@@ -215,6 +224,7 @@ export default function PaymentResult({ orderId }: { orderId: number }) {
           <Link href="/history" className="bl-detail-back bl-payment-link">
             Lịch sử đơn hàng
           </Link>
+          <PaymentHistory orderId={orderId} />
         </section>
         {state.order && (
           <section className="bl-panel" aria-label="Tóm tắt đơn hàng">

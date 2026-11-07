@@ -1,5 +1,7 @@
 import { paidStatuses, statusNames, type OrderRecord } from "@/lib/orders";
 import { money, optionText } from "@/lib/pricing";
+import PaymentCountdown from "./PaymentCountdown";
+import PaymentHistory from "./PaymentHistory";
 
 export default function OrderCard({ order }: { order: OrderRecord }) {
   const subtotal = order.items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -20,6 +22,12 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
         </span>
       </div>
       <p>{statusNames[order.status]}</p>
+      {order.status === "PENDING" && order.expiresAt && (
+        <PaymentCountdown
+          expiresAt={order.expiresAt}
+          isPending={true}
+        />
+      )}
       {order.items.map((item, index) => (
         <div className="bl-summary-line" key={`${item.productId}-${index}`}>
           <div>
@@ -48,6 +56,7 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
         <span>Tổng thanh toán</span>
         <strong>{money(order.total)}</strong>
       </div>
+      <PaymentHistory orderId={order.id} />
     </article>
   );
 }
