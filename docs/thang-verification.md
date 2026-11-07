@@ -38,3 +38,13 @@ Worktree riêng, không đưa thay đổi chưa commit của Hưng vào. Chuẩn
 - Biên bản này.
 
 `git diff --check` đã kiểm tra; cần review contract/schema và acceptance còn thiếu trước tích hợp.
+
+## Sửa lỗi sau review — 07/11/2026
+
+- PaymentDetails parse phản hồi status rồi gọi onStatus; checkout nối callback với CheckoutProvider.syncPayment, cập nhật trạng thái đơn/nút thao tác theo backend.
+- Thêm key theo orderId để việc tạo đơn mới reset trạng thái xác minh. Request kiểm tra status được hủy khi rời component.
+- Tách retry xác minh status khỏi retry tải details: lỗi mạng lúc hết hạn có thể gọi lại đúng API status, không chỉ đọc lại details.
+- Kiểm thử trình duyệt thật với database payment_review riêng: tạo đơn qua checkout; fixture rút hạn xuống 25 giây, backend đổi CANCELLED trước khi hết hạn; proxy localhost mô phỏng status trả 503 một lần. Giao diện hiện lỗi + Thử lại; bấm thử lại gọi status thành công, hiển thị Đã hủy và nút Thanh toán không còn (count=0).
+- Proxy log: INJECTED_STATUS_503 rồi STATUS_BACKEND_200; không tự tạo giao dịch mới hay đổi trạng thái theo đồng hồ frontend.
+- `cd apps/web && npx --no-install tsc --noEmit && npm run lint`: đạt. `git diff --check`: đạt.
+- Không thay API, schema hoặc quy tắc thanh toán. Chưa gọi gateway thật; các giới hạn production build/nghiệm thu khác phía trên vẫn còn.

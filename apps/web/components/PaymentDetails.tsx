@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { isObject } from "@/lib/api";
+import { parsePaymentStatus, type PaymentStatus } from "@/lib/payments";
 import { money } from "@/lib/pricing";
 
 type Payment = {
@@ -63,10 +64,12 @@ export default function PaymentDetails({
   orderId,
   revision = 0,
   onExpired,
+  onStatus,
 }: {
   orderId: number;
   revision?: number;
   onExpired?: () => void;
+  onStatus?: (status: PaymentStatus) => void;
 }) {
   const { request } = useAuth();
   const [data, setData] = useState<{
@@ -80,6 +83,31 @@ export default function PaymentDetails({
   const [now, setNow] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const [verificationRevision, setVerificationRevision] = useState(0);
+  const [verificationError, setVerificationError] = useState(false);
+  useEffect(() => {
+    if (verificationRevision === 0) return;
+    const controller = new AbortController();
+    request(`/payments/${orderId}/status`, { signal: controller.signal })
+      .then((value) => {
+        if (controller.signal.aborted) return;
+        const status = parsePaymentStatus(value, orderId);
+        onStatus?.(status);
+        setVerificationError(false);
+        setError("");
+        setRetry((v) => v + 1);
+      })
+      .catch((cause) => {
+        if (controller.signal.aborted) return;
+        setVerificationError(true);
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Chưa kiểm tra được kết quả backend.",
+        );
+      });
+    return () => controller.abort();
+  }, [verificationRevision, orderId, request, onStatus]);
   useEffect(() => {
     const controller = new AbortController();
     request(`/payments/${orderId}/details`, { signal: controller.signal })
@@ -137,17 +165,7 @@ export default function PaymentDetails({
       if (remaining === 0 && expiredDeadline.current !== data!.deadline) {
         expiredDeadline.current = data!.deadline;
         if (onExpired) onExpired();
-        else {
-          void request(`/payments/${orderId}/status`)
-            .then(() => setRetry((v) => v + 1))
-            .catch((e) =>
-              setError(
-                e instanceof Error
-                  ? e.message
-                  : "Chưa kiểm tra được kết quả backend.",
-              ),
-            );
-        }
+        else setVerificationRevision((v) => v + 1);
       }
     }
     tick();
@@ -160,7 +178,13 @@ export default function PaymentDetails({
       {error && (
         <p role="alert">
           {error}{" "}
-          <button type="button" onClick={() => setRetry((v) => v + 1)}>
+          <button
+            type="button"
+            onClick={() => {
+              if (verificationError) setVerificationRevision((v) => v + 1);
+              else setRetry((v) => v + 1);
+            }}
+          >
             Thử lại
           </button>
         </p>

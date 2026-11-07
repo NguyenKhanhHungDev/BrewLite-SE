@@ -103,7 +103,13 @@ export default function CheckoutPage() {
             </section>
           ) : (
             <div className="bl-flow-grid">
-              {purchase && <PaymentDetails orderId={purchase.orderId} />}
+              {purchase && (
+                <PaymentDetails
+                  key={purchase.orderId}
+                  orderId={purchase.orderId}
+                  onStatus={checkout.syncPayment}
+                />
+              )}
               <section className="bl-panel" aria-busy={busy}>
                 {!auth.session ? (
                   <>
