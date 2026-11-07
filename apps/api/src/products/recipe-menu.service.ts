@@ -56,6 +56,7 @@ export function recipeToProduct(recipe: RecipeRecord) {
     name: recipe.name,
     price: recipe.price,
     imageUrl: recipe.imageUrl,
+    category: recipe.category,
     stock,
   };
 }

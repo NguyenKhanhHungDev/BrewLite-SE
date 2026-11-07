@@ -65,6 +65,7 @@ async function main() {
       const recipesData = [
         {
           name: 'Cà phê sữa',
+          category: 'COFFEE' as const,
           price: 35000,
           imageUrl: '/images/products/ca-phe-sua.jpg',
           recipeIngredients: [
@@ -76,6 +77,7 @@ async function main() {
         },
         {
           name: 'Trà đào',
+          category: 'TEA' as const,
           price: 39000,
           imageUrl: '/images/products/tra-dao.jpg',
           recipeIngredients: [
@@ -87,6 +89,7 @@ async function main() {
         },
         {
           name: 'Bạc xỉu',
+          category: 'COFFEE' as const,
           price: 38000,
           imageUrl: '/images/products/bac-xiu.jpg',
           recipeIngredients: [
@@ -98,6 +101,7 @@ async function main() {
         },
         {
           name: 'Cà phê đen đá',
+          category: 'COFFEE' as const,
           price: 29000,
           imageUrl: '/images/products/ca-phe-den-da.jpg',
           recipeIngredients: [
@@ -108,6 +112,7 @@ async function main() {
         },
         {
           name: 'Cà phê muối',
+          category: 'COFFEE' as const,
           price: 42000,
           imageUrl: '/images/products/ca-phe-muoi.jpg',
           recipeIngredients: [
@@ -120,6 +125,7 @@ async function main() {
         },
         {
           name: 'Trà sữa trân châu',
+          category: 'TEA' as const,
           price: 45000,
           imageUrl: '/images/products/tra-sua-tran-chau.jpg',
           recipeIngredients: [
@@ -132,6 +138,7 @@ async function main() {
         },
         {
           name: 'Trà vải',
+          category: 'TEA' as const,
           price: 40000,
           imageUrl: '/images/products/tra-vai.jpg',
           recipeIngredients: [
@@ -143,6 +150,7 @@ async function main() {
         },
         {
           name: 'Matcha latte',
+          category: 'OTHER' as const,
           price: 49000,
           imageUrl: '/images/products/matcha-latte.jpg',
           recipeIngredients: [
@@ -154,6 +162,7 @@ async function main() {
         },
         {
           name: 'Cacao sữa',
+          category: 'OTHER' as const,
           price: 42000,
           imageUrl: '/images/products/cacao-sua.jpg',
           recipeIngredients: [
@@ -165,6 +174,7 @@ async function main() {
         },
         {
           name: 'Trà chanh',
+          category: 'TEA' as const,
           price: 29000,
           imageUrl: '/images/products/tra-chanh.jpg',
           recipeIngredients: [
@@ -185,6 +195,7 @@ async function main() {
         const recipe = await tx.recipe.create({
           data: {
             name: rec.name,
+            category: rec.category,
             price: rec.price,
             imageUrl: rec.imageUrl,
             isActive: true,

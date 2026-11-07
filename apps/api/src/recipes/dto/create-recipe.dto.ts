@@ -1,8 +1,9 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsInt, IsString,
-  Matches, Max, Min, ValidateNested,
+  ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsString,
+  Matches, Max, Min, ValidateIf, ValidateNested,
 } from 'class-validator';
+import type { RecipeRecord } from '../recipes.contract.js';
 
 export class RecipeIngredientDto {
   @IsInt()
@@ -32,6 +33,10 @@ export class CreateRecipeDto {
 
   @IsBoolean()
   isActive: boolean;
+
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsIn(['COFFEE', 'TEA', 'OTHER'])
+  category?: RecipeRecord['category'];
 
   @IsArray()
   @ArrayMinSize(1)

@@ -38,7 +38,7 @@ describe('RecipesService preparation (mock repository, no database)', () => {
     { ingredients: [] }, { ingredients: [{ ingredientId: 1, quantity: 0 }] },
     { ingredients: [{ ingredientId: -1, quantity: 1 }] },
     { ingredients: [{ ingredientId: 1, quantity: 1 }, { ingredientId: 1, quantity: 2 }] },
-    { unknownField: true },
+    { unknownField: true }, { category: 'INVALID' }, { category: null },
   ])('rejects invalid create input: %j', (patch) => {
     expect(() => service.create({ ...input, ...patch } as typeof input)).toThrow(BadRequestException);
     expect(repository.transaction).not.toHaveBeenCalled();
@@ -70,6 +70,18 @@ describe('RecipesService preparation (mock repository, no database)', () => {
 
   it('rejects explicit null on PATCH', () => {
     expect(() => service.update(7, { ingredients: null } as never)).toThrow(BadRequestException);
+  });
+
+  it.each(['COFFEE', 'TEA', 'OTHER'] as const)('accepts category %s when saving a recipe', async (category) => {
+    await service.create({ ...input, category });
+    expect(tx.create).toHaveBeenCalledWith({ ...input, category });
+    await service.update(7, { category });
+    expect(tx.update).toHaveBeenCalledWith(7, { category });
+  });
+
+  it.each(['INVALID', null, '', 1])('rejects invalid category on PATCH: %s', (category) => {
+    expect(() => service.update(7, { category } as never)).toThrow(BadRequestException);
+    expect(repository.transaction).not.toHaveBeenCalled();
   });
 
   it('returns 404 for a missing recipe on update', async () => {

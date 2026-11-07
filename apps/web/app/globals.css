@@ -301,6 +301,13 @@ button:focus-visible {
   scroll-margin-top: 95px;
   background: #fff;
 }
+.bl-menu-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; margin-bottom: 28px; }
+.bl-menu-filters label { display: grid; gap: 8px; flex: 1 1 220px; }
+.bl-menu-filters input, .bl-menu-filters select { width: 100%; min-height: 44px; padding: 12px; border: 1px solid var(--bl-border); border-radius: 8px; background: white; color: var(--bl-espresso); font: inherit; }
+.bl-confirm-dialog { width: min(440px, calc(100% - 32px)); margin: auto; padding: 28px; border: 1px solid var(--bl-border); border-radius: 16px; color: var(--bl-espresso); }
+.bl-confirm-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.bl-confirm-dialog h2 { margin: 0; }
+.bl-confirm-dialog .bl-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 .bl-section-heading {
   display: flex;
   align-items: flex-end;
@@ -841,6 +848,13 @@ button:focus-visible {
 .bl-summary-total strong { color: var(--bl-espresso); font-size: 23px; }
 .bl-empty { padding: 48px 24px; text-align: center; }
 .bl-empty .bl-button { margin-top: 12px; }
+.bl-menu-state h3,
+.bl-empty h2,
+.bl-confirm-dialog h2 {
+  font-family: var(--bl-body);
+  letter-spacing: normal;
+  word-spacing: normal;
+}
 .bl-auth-wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: stretch; }
 .bl-auth-visual { display: flex; flex-direction: column; justify-content: center; min-height: 540px; padding: 44px; border-radius: 16px; background: var(--bl-espresso); color: var(--bl-cream); }
 .bl-auth-visual .bl-eyebrow { color: #d9baa1; }

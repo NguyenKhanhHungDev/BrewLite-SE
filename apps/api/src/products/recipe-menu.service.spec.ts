@@ -14,6 +14,7 @@ const recipe = (): RecipeRecord => ({
   price: 35000,
   imageUrl: '/images/products/ca-phe-sua.jpg',
   isActive: true,
+  category: 'COFFEE',
   ingredients: [
     {
       ingredientId: 12,
@@ -35,6 +36,7 @@ describe('Recipe menu preparation', () => {
       name: 'Cà phê sữa',
       price: 35000,
       imageUrl: '/images/products/ca-phe-sua.jpg',
+      category: 'COFFEE',
       stock: 5,
       stockBySize: { S: 6, M: 5, L: 4 },
     });

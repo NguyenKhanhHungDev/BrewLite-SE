@@ -4,6 +4,7 @@ import { useAuth } from "../AuthProvider";
 import { parseRecipes, type Recipe } from "@/lib/recipes";
 import { parseIngredients, type Ingredient } from "@/lib/ingredients";
 import { money } from "@/lib/pricing";
+import { categories, type Category } from "@/lib/menu";
 import { useAdminList } from "./useAdminList";
 import ProductImage from "../ProductImage";
 export default function RecipeManager() {
@@ -63,6 +64,12 @@ export default function RecipeManager() {
             <p>
               {money(item.price)} · {item.isActive ? "Đang bán" : "Ngừng bán"}
             </p>
+            <p>
+              {
+                categories.find((category) => category.value === item.category)
+                  ?.label
+              }
+            </p>
             <details>
               <summary>Nguyên liệu size M</summary>
               <ul>
@@ -104,6 +111,7 @@ function RecipeForm({
     [price, setPrice] = useState(String(item?.price ?? "")),
     [imageUrl, setImage] = useState(item?.imageUrl ?? ""),
     [active, setActive] = useState(item?.isActive ?? true);
+  const [category, setCategory] = useState<Category>(item?.category ?? "OTHER");
   const [rows, setRows] = useState(
     item?.ingredients.map((row) => ({
       ingredientId: String(row.ingredientId),
@@ -160,6 +168,7 @@ function RecipeForm({
           price: Number(price),
           imageUrl: imageUrl.trim(),
           isActive: active,
+          category,
           ingredients: selected,
         }),
       });
@@ -184,6 +193,19 @@ function RecipeForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+        </label>
+        <label>
+          Danh mục
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value as Category)}
+          >
+            {categories.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           Giá size M
