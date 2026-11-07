@@ -48,3 +48,10 @@ Worktree riêng, không đưa thay đổi chưa commit của Hưng vào. Chuẩn
 - Biên bản này.
 
 `git diff --check` đã kiểm tra; cần review contract/schema và acceptance còn thiếu trước tích hợp.
+
+## Sửa lỗi sau review — 07/11/2026
+
+- Sửa pattern SĐT của AccountProfile: thuộc tính JSX literal dùng một backslash trước dấu +, đồng nhất với backend.
+- Kiểm thử trình duyệt thật trên dữ liệu giả / database account_review riêng: +84912345678 có validity.valid=true, bấm Lưu thông tin thành công; 0912345678 hợp lệ; 123 bị constraint validation chặn.
+- `cd apps/web && npx --no-install tsc --noEmit && npm run lint`: đạt. `git diff --check`: đạt.
+- Chỉ sửa frontend; không thay migration/backend. Các giới hạn nghiệm thu khác phía trên vẫn còn.

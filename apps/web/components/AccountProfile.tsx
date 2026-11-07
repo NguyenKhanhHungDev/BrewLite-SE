@@ -86,7 +86,7 @@ export default function AccountProfile() {
               required
               type="tel"
               autoComplete="tel"
-              pattern="(0[0-9]{9}|\\+84[0-9]{9})"
+              pattern="(0[0-9]{9}|\+84[0-9]{9})"
               title="10 chữ số bắt đầu bằng 0 hoặc +84 và 9 chữ số"
               value={profile.phone}
               onChange={(e) =>
