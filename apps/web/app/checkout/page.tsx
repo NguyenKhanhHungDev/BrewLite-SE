@@ -144,9 +144,27 @@ export default function CheckoutPage() {
             </div>
           )}
           {error && (
-            <div className="bl-alert bl-alert-error" role="alert">
-              <ExclamationIcon size={18} />
-              <span>{error}</span>
+            <div
+              className={`bl-alert ${
+                error.includes("outcome is unknown") || error.includes("in progress")
+                  ? "bl-alert-warning"
+                  : "bl-alert-error"
+              }`}
+              role="alert"
+            >
+              <ExclamationIcon size={20} />
+              <div style={{ flex: 1 }}>
+                <strong>
+                  {error.includes("outcome is unknown") || error.includes("in progress")
+                    ? "Giao dịch đang được xử lý hoặc cổng ZaloPay Sandbox phản hồi chậm."
+                    : "Lỗi kết nối cổng thanh toán:"}
+                </strong>
+                <p style={{ margin: "4px 0 0", fontSize: "0.92rem", opacity: 0.95 }}>
+                  {error.includes("outcome is unknown") || error.includes("in progress")
+                    ? "Hệ thống đã tự động bảo vệ giao dịch để tránh trừ tiền trùng lặp. Vui lòng bấm nút 'Xem trạng thái thanh toán & đối soát' bên dưới để kiểm tra và cập nhật đơn hàng."
+                    : error}
+                </p>
+              </div>
             </div>
           )}
 
@@ -261,6 +279,15 @@ export default function CheckoutPage() {
                             >
                               Đổi phương thức / Hủy quét mã
                             </button>
+
+                            <Link
+                              href={`/payment/result?orderId=${purchase.orderId}`}
+                              className="bl-button bl-btn-recheck-prominent"
+                              aria-label={`Xem trạng thái thanh toán và đối soát đơn #${purchase.orderId}`}
+                            >
+                              <RefreshIcon size={18} />
+                              <span>Xem trạng thái thanh toán & đối soát</span>
+                            </Link>
                           </div>
                         ) : (
                           <div className="bl-pay-cta-box">
@@ -285,6 +312,15 @@ export default function CheckoutPage() {
                                 </>
                               )}
                             </button>
+
+                            <Link
+                              href={`/payment/result?orderId=${purchase.orderId}`}
+                              className="bl-button bl-btn-recheck-prominent"
+                              aria-label={`Xem trạng thái thanh toán và đối soát đơn #${purchase.orderId}`}
+                            >
+                              <RefreshIcon size={18} />
+                              <span>Xem trạng thái thanh toán & đối soát</span>
+                            </Link>
                           </div>
                         )}
                       </>
@@ -303,18 +339,27 @@ export default function CheckoutPage() {
                             <span>Tạo đơn mới từ giỏ hàng</span>
                           </button>
                         )}
+                        <Link
+                          href={`/payment/result?orderId=${purchase.orderId}`}
+                          className="bl-button bl-btn-recheck-prominent"
+                          aria-label={`Xem trạng thái thanh toán và đối soát đơn #${purchase.orderId}`}
+                        >
+                          <RefreshIcon size={18} />
+                          <span>Xem trạng thái thanh toán & đối soát</span>
+                        </Link>
                       </div>
-                    ) : null}
-
-                    <div className="bl-order-links">
-                      <Link
-                        href={`/payment/result?orderId=${purchase.orderId}`}
-                        className="bl-link-recheck"
-                      >
-                        <RefreshIcon size={16} />
-                        <span>Xem trạng thái thanh toán & đối soát</span>
-                      </Link>
-                    </div>
+                    ) : (
+                      <div className="bl-pay-cta-box">
+                        <Link
+                          href={`/payment/result?orderId=${purchase.orderId}`}
+                          className="bl-button bl-btn-recheck-prominent"
+                          aria-label={`Xem trạng thái thanh toán và đối soát đơn #${purchase.orderId}`}
+                        >
+                          <RefreshIcon size={18} />
+                          <span>Xem trạng thái thanh toán & đối soát</span>
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>

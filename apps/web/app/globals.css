@@ -1964,6 +1964,68 @@ a {
   max-width: 320px;
 }
 
+/* Checkout Action Buttons & Prominent Recheck CTA */
+.bl-pay-cta-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.bl-btn-pay {
+  min-height: 50px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(197, 125, 52, 0.25);
+}
+.bl-btn-recheck-prominent {
+  min-height: 50px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: var(--bl-radius-md);
+  background: var(--bl-bg-card);
+  border: 2px solid var(--bl-caramel);
+  color: var(--bl-espresso);
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--bl-shadow-xs);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+.bl-btn-recheck-prominent:hover {
+  background: var(--bl-caramel-light);
+  border-color: var(--bl-caramel-hover);
+  color: var(--bl-caramel-text);
+  transform: translateY(-1px);
+  box-shadow: var(--bl-shadow-sm);
+}
+[data-theme="dark"] .bl-btn-recheck-prominent {
+  background: var(--bl-bg-subtle);
+  border-color: var(--bl-caramel);
+  color: #f7f1e9;
+}
+[data-theme="dark"] .bl-btn-recheck-prominent:hover {
+  background: var(--bl-sand);
+  color: var(--bl-caramel);
+  border-color: var(--bl-caramel-hover);
+}
+.bl-btn-recheck-prominent svg {
+  transition: transform 0.4s ease;
+  color: var(--bl-caramel);
+}
+.bl-btn-recheck-prominent:hover svg {
+  transform: rotate(180deg);
+}
+
+.bl-alert-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 /* ==========================================================================
    COUNTDOWN TIMER (Task T03 Styling)
    ========================================================================== */
