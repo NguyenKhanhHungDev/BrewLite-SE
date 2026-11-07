@@ -2,16 +2,19 @@ import 'dotenv/config';
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
+import type { OrderPreferences } from './order-preferences.js';
 import type {
   OrderHistoryRecord,
   OrdersHistoryStore,
 } from './orders-history.contract.js';
 
-interface HistoryRow {
+interface HistoryRow extends OrderPreferences {
   orderId: number;
   status: string;
   total: number;
   createdAt: Date;
+  recipientName: string | null;
+  recipientPhone: string | null;
   recipeId: number | null;
   recipeName: string | null;
   productId: number | null;
@@ -41,9 +44,11 @@ export class OrdersHistoryPrismaAdapter
     const rows = await this.prisma.$queryRaw<HistoryRow[]>`
       SELECT
         o."id" AS "orderId", o."status", o."total", o."createdAt",
+        o."recipientName", o."recipientPhone",
         oi."recipeId", oi."recipeName", oi."productId",
         product."name" AS "productName",
-        oi."quantity", oi."size", oi."toppings", oi."unitPrice", oi."subtotal"
+        oi."quantity", oi."size", oi."toppings", oi."unitPrice", oi."subtotal",
+        oi."sugarLevel", oi."iceLevel", oi."note"
       FROM "Order" o
       LEFT JOIN "OrderItem" oi ON oi."orderId" = o."id"
       LEFT JOIN "Product" product ON product."id" = oi."productId"
@@ -61,6 +66,8 @@ export class OrdersHistoryPrismaAdapter
           status: row.status,
           total: Number(row.total),
           createdAt: row.createdAt,
+          recipientName: row.recipientName ?? null,
+          recipientPhone: row.recipientPhone ?? null,
           items: [],
         };
         orders.set(id, order);
@@ -74,6 +81,9 @@ export class OrdersHistoryPrismaAdapter
           ? (row.recipeId === null ? null : Number(row.recipeId))
           : Number(row.productId),
         quantity: Number(row.quantity),
+        sugarLevel: row.sugarLevel ?? null,
+        iceLevel: row.iceLevel ?? null,
+        note: row.note ?? null,
         size: row.size ?? 'M',
         toppings: Array.isArray(row.toppings)
           ? row.toppings.filter((value): value is string => typeof value === 'string')

@@ -1,3 +1,5 @@
+import type { OrderPreferences } from './order-preferences.js';
+
 export type { OrderStatus } from './order-state.js';
 export type Size = 'S' | 'M' | 'L';
 export type Topping = 'PEARL' | 'CREAM';
@@ -30,7 +32,7 @@ export interface ToppingIngredientSnapshot {
   cream: IngredientSnapshot | null;
 }
 
-export interface OrderLine {
+export interface OrderLine extends OrderPreferences {
   /** Client keeps the legacy productId field; it now contains Recipe.id. */
   productId: number;
   recipeName: string;
@@ -48,6 +50,8 @@ export interface OrderDraft {
   total: number;
   discount: number;
   promoCode: string | null;
+  recipientName: string;
+  recipientPhone: string;
   idempotencyKey: string | null;
   idempotencyHash: string | null;
   items: OrderLine[];
@@ -58,6 +62,8 @@ export interface StoredOrderResult {
   status: string;
   total: number;
   idempotencyHash: string | null;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
 }
 
 export interface OrderDetailRecord {
@@ -66,7 +72,9 @@ export interface OrderDetailRecord {
   total: number;
   createdAt: Date;
   expiresAt: Date | null;
-  items: Array<{
+  recipientName: string | null;
+  recipientPhone: string | null;
+  items: Array<OrderPreferences & {
     recipeId: number | null;
     recipeName: string;
     productId: number | null;
@@ -91,6 +99,12 @@ export interface AdminOrderPage {
   totalPages: number;
 }
 
+export interface AdminOrderFilters {
+  dateFrom: Date | null;
+  dateToExclusive: Date | null;
+  status: string | null;
+}
+
 export interface OrdersStore {
   getRecipeById(id: number): Promise<RecipeSnapshot | null>;
   getToppingIngredients(): Promise<ToppingIngredientSnapshot>;
@@ -98,13 +112,25 @@ export interface OrdersStore {
     userId: number,
     key: string,
   ): Promise<StoredOrderResult | null>;
+  updateLegacyRecipientSnapshot(
+    userId: number,
+    key: string,
+    legacyHash: string,
+    currentHash: string,
+    recipientName: string,
+    recipientPhone: string,
+  ): Promise<boolean>;
   saveOrder(draft: OrderDraft): Promise<StoredOrderResult>;
   findOrderForUser(
     orderId: number,
     userId: number,
   ): Promise<OrderDetailRecord | null>;
   findAdminOrder(orderId: number): Promise<AdminOrderRecord | null>;
-  listAdminOrders(page: number, limit: number): Promise<AdminOrderPage>;
+  listAdminOrders(
+    page: number,
+    limit: number,
+    filters: AdminOrderFilters,
+  ): Promise<AdminOrderPage>;
   expirePendingOrders(batchSize: number): Promise<number>;
 }
 

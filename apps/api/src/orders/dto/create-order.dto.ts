@@ -8,10 +8,21 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsNotEmpty,
+  Length,
+  Matches,
   MaxLength,
   Min,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
+import {
+  ICE_LEVELS,
+  MAX_NOTE_LENGTH,
+  SUGAR_LEVELS,
+  type IceLevel,
+  type SugarLevel,
+} from '../order-preferences.js';
 
 export class CreateOrderItemDto {
   @IsInt()
@@ -32,9 +43,33 @@ export class CreateOrderItemDto {
   @ArrayUnique()
   @IsIn(['PEARL', 'CREAM'], { each: true })
   toppings?: ('PEARL' | 'CREAM')[];
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(SUGAR_LEVELS)
+  sugarLevel?: SugarLevel;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(ICE_LEVELS)
+  iceLevel?: IceLevel;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MaxLength(MAX_NOTE_LENGTH)
+  note?: string;
 }
 
 export class CreateOrderDto {
+  @IsString()
+  @IsNotEmpty()
+  @Length(2, 100)
+  recipientName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
+  @Matches(/^\+?[0-9][0-9\s().-]{6,18}[0-9]$/)
+  recipientPhone!: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

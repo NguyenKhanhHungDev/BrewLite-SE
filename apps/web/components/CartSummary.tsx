@@ -1,6 +1,7 @@
 import { cartTotal, type CartLine } from "@/lib/cart";
 import { money, optionText, unitPrice } from "@/lib/pricing";
 import { previewPromotion } from "@/lib/promotion";
+import ItemPreferences from "./ItemPreferences";
 
 export default function CartSummary({
   lines,
@@ -30,6 +31,7 @@ export default function CartSummary({
               {line.quantity} × {line.product.name}
             </strong>
             <small>{optionText(line.size, line.toppings)}</small>
+            <ItemPreferences value={line} />
           </div>
           {total === undefined && (
             <span>

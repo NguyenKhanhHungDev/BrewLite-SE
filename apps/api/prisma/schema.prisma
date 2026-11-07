@@ -38,6 +38,8 @@ model Order {
   idempotencyKey  String?
   idempotencyHash String?
   expiresAt       DateTime?
+  recipientName   String?
+  recipientPhone  String?
   createdAt       DateTime          @default(now())
   items           OrderItem[]
   payments        Payment[]
@@ -58,6 +60,9 @@ model OrderItem {
   quantity   Int
   size       String   @default("M")
   toppings   Json
+  sugarLevel Int?
+  iceLevel   String?
+  note       String?  @db.VarChar(200)
   unitPrice  Int
   subtotal   Int
 }

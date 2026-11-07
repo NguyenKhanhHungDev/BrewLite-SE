@@ -1,5 +1,34 @@
 @import "tailwindcss";
 
+.bl-preference-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.bl-field textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--bl-border);
+  border-radius: 0.5rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.bl-field textarea:focus-visible {
+  outline: 2px solid var(--bl-coffee);
+  outline-offset: 2px;
+}
+
+.bl-item-preferences small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.bl-item-note {
+  white-space: pre-wrap;
+}
+
 :root {
   --bl-cream: #f7f3ed;
   --bl-ink: #292421;
@@ -856,3 +885,18 @@ button:focus-visible {
 .bl-payment-note { font-size: 14px; }
 .bl-payment-link { display: block; margin-top: 18px; text-align: center; }
 .bl-payment-summary-name { overflow-wrap: anywhere; }
+
+
+/* Phat: recipient snapshot and order-management filters/progress */
+.bl-checkout-recipient { min-width: 0; margin: 22px 0; padding: 18px; border: 1px solid var(--bl-border); border-radius: 12px; }
+.bl-checkout-recipient legend { padding: 0 6px; color: var(--bl-espresso); font-weight: 700; }
+.bl-checkout-recipient label { display: flex; flex-direction: column; gap: 7px; margin: 14px 0; color: var(--bl-coffee); font-weight: 600; }
+.bl-checkout-recipient input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--bl-border); border-radius: 8px; background: #fff; color: var(--bl-ink); font: inherit; }
+.bl-checkout-recipient input:focus-visible,.bl-order-filters input:focus-visible,.bl-order-filters select:focus-visible { outline: 3px solid #986d50; outline-offset: 2px; }
+.bl-checkout-recipient:disabled { opacity: .75; }
+.bl-order-recipient { display: grid; gap: 4px; margin: 12px 0 18px; padding: 12px 14px; border-radius: 8px; background: #f8f5f1; color: var(--bl-coffee); }
+.bl-order-filters fieldset { padding: 18px; border: 1px solid var(--bl-border); border-radius: 12px; }
+.bl-order-filters legend { padding: 0 6px; font-weight: 700; }
+.bl-order-filter-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,190px),1fr)); gap: 16px; }
+.bl-order-filters label { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 14px; }
+.bl-order-filters input,.bl-order-filters select { width: 100%; min-height: 42px; padding: 8px 10px; border: 1px solid var(--bl-border); border-radius: 8px; background: white; color: var(--bl-ink); }

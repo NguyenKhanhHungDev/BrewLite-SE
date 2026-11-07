@@ -19,6 +19,7 @@ import {
 } from "@/lib/cart";
 import type { Product } from "@/lib/products";
 import type { Size, Topping } from "@/lib/pricing";
+import type { Preferences } from "@/lib/preferences";
 
 type CartApi = {
   lines: CartLine[];
@@ -30,6 +31,7 @@ type CartApi = {
     size: Size,
     toppings: Topping[],
     quantity: number,
+    preferences?: Preferences,
   ) => void;
   changeQuantity: (key: string, quantity: number) => void;
   remove: (key: string) => void;
@@ -89,11 +91,19 @@ export default function CartProvider({ children }: { children: ReactNode }) {
   }, [commit]);
 
   const add = useCallback(
-    (product: Product, size: Size, toppings: Topping[], quantity: number) => {
+    (
+      product: Product,
+      size: Size,
+      toppings: Topping[],
+      quantity: number,
+      preferences?: Preferences,
+    ) => {
       if (!current.current.ready)
         throw new Error("Đang khôi phục giỏ hàng, vui lòng chờ.");
       commit(
-        addCartLine(current.current.lines, product, size, toppings, quantity),
+        addCartLine(
+          current.current.lines, product, size, toppings, quantity, preferences,
+        ),
       );
     },
     [commit],

@@ -1,4 +1,5 @@
 import { isObject } from "./api";
+import { parsePreferences, type Preferences } from "./preferences";
 import { isSize, isToppings, type Size, type Topping } from "./pricing";
 
 export type OrderStatus =
@@ -19,7 +20,9 @@ export type OrderRecord = {
   status: OrderStatus;
   total: number;
   createdAt: string;
-  items: {
+  recipientName: string | null;
+  recipientPhone: string | null;
+  items: (Preferences & {
     productId: number;
     recipeName: string;
     quantity: number;
@@ -27,7 +30,7 @@ export type OrderRecord = {
     toppings: Topping[];
     unitPrice: number;
     subtotal: number;
-  }[];
+  })[];
 };
 export type PaymentMethod = "WALLET" | "CARD";
 export type SimulateResult = "SUCCESS" | "FAILURE";
@@ -86,6 +89,8 @@ export function parseHistory(value: unknown): OrderRecord[] {
       !integer(order.total, 1) ||
       typeof order.createdAt !== "string" ||
       !Number.isFinite(Date.parse(order.createdAt)) ||
+      !(order.recipientName === undefined || order.recipientName === null || typeof order.recipientName === "string") ||
+      !(order.recipientPhone === undefined || order.recipientPhone === null || typeof order.recipientPhone === "string") ||
       !Array.isArray(order.items) ||
       !order.items.length
     ) {
@@ -105,6 +110,7 @@ export function parseHistory(value: unknown): OrderRecord[] {
         throw new Error("Chi tiết đơn hàng không hợp lệ.");
       }
       return {
+        ...parsePreferences(item),
         productId: integer(item.recipeId, 1)
           ? item.recipeId
           : Number(item.productId),
@@ -124,6 +130,8 @@ export function parseHistory(value: unknown): OrderRecord[] {
       status: order.status,
       total: order.total,
       createdAt: order.createdAt,
+      recipientName: typeof order.recipientName === "string" ? order.recipientName : null,
+      recipientPhone: typeof order.recipientPhone === "string" ? order.recipientPhone : null,
       items,
     };
   });

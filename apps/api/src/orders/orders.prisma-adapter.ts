@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
+import type { OrderPreferences } from './order-preferences.js';
 import type {
   AdminOrderPage,
   AdminOrderRecord,
@@ -58,11 +59,13 @@ interface OrderRow {
   total: number;
   createdAt: Date;
   expiresAt: Date | null;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
   userEmail?: string;
   paymentStatus?: string | null;
 }
 
-interface OrderItemRow {
+interface OrderItemRow extends OrderPreferences {
   recipeId: number | null;
   recipeName: string | null;
   productId: number | null;
@@ -152,6 +155,9 @@ function mapItems(rows: OrderItemRow[]) {
           : Number(row.recipeId)
         : Number(row.productId),
     quantity: Number(row.quantity),
+    sugarLevel: row.sugarLevel ?? null,
+    iceLevel: row.iceLevel ?? null,
+    note: row.note ?? null,
     size: row.size,
     toppings: Array.isArray(row.toppings)
       ? row.toppings.filter(
@@ -206,12 +212,35 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
     key: string,
   ): Promise<StoredOrderResult | null> {
     const rows = await this.prisma.$queryRaw<StoredOrderResult[]>`
-      SELECT "id", "status", "total", "idempotencyHash"
+      SELECT "id", "status", "total", "idempotencyHash", "recipientName", "recipientPhone"
       FROM "Order"
       WHERE "userId" = ${userId} AND "idempotencyKey" = ${key}
       LIMIT 1
     `;
     return rows[0] ?? null;
+  }
+
+  async updateLegacyRecipientSnapshot(
+    userId: number,
+    key: string,
+    legacyHash: string,
+    currentHash: string,
+    recipientName: string,
+    recipientPhone: string,
+  ): Promise<boolean> {
+    const updated = await this.prisma.$queryRaw<Array<{ id: number }>>`
+      UPDATE "Order"
+      SET "recipientName" = ${recipientName},
+          "recipientPhone" = ${recipientPhone},
+          "idempotencyHash" = ${currentHash}
+      WHERE "userId" = ${userId}
+        AND "idempotencyKey" = ${key}
+        AND "idempotencyHash" = ${legacyHash}
+        AND "recipientName" IS NULL
+        AND "recipientPhone" IS NULL
+      RETURNING "id"
+    `;
+    return updated.length === 1;
   }
 
   async saveOrder(draft: OrderDraft): Promise<StoredOrderResult> {
@@ -223,7 +252,7 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
           SELECT pg_advisory_xact_lock(${draft.userId}, hashtext(${draft.idempotencyKey}))::text AS "locked"
         `;
         const existing = await tx.$queryRaw<StoredOrderResult[]>`
-          SELECT "id", "status", "total", "idempotencyHash"
+          SELECT "id", "status", "total", "idempotencyHash", "recipientName", "recipientPhone"
           FROM "Order"
           WHERE "userId" = ${draft.userId}
             AND "idempotencyKey" = ${draft.idempotencyKey}
@@ -308,11 +337,13 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       const orderRows = await tx.$queryRaw<StoredOrderResult[]>`
         INSERT INTO "Order" (
           "userId", "status", "total", "discount", "promoCode",
+          "recipientName", "recipientPhone",
           "idempotencyKey", "idempotencyHash", "expiresAt"
         )
         VALUES (
           ${draft.userId}, ${draft.status}, ${draft.total}, ${draft.discount},
-          ${draft.promoCode}, ${draft.idempotencyKey}, ${draft.idempotencyHash},
+          ${draft.promoCode}, ${draft.recipientName}, ${draft.recipientPhone},
+          ${draft.idempotencyKey}, ${draft.idempotencyHash},
           CURRENT_TIMESTAMP + INTERVAL '15 minutes'
         )
         RETURNING "id", "status", "total", "idempotencyHash"
@@ -324,12 +355,14 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
         await tx.$executeRaw`
           INSERT INTO "OrderItem" (
             "orderId", "productId", "recipeId", "recipeName",
-            "quantity", "size", "toppings", "unitPrice", "subtotal"
+            "quantity", "size", "toppings", "unitPrice", "subtotal",
+            "sugarLevel", "iceLevel", "note"
           )
           VALUES (
             ${order.id}, NULL, ${line.productId}, ${line.recipeName},
             ${line.quantity}, ${line.size}, ${JSON.stringify(line.toppings)}::jsonb,
-            ${line.unitPrice}, ${line.subtotal}
+            ${line.unitPrice}, ${line.subtotal},
+            ${line.sugarLevel ?? null}, ${line.iceLevel ?? null}, ${line.note ?? null}
           )
         `;
       }
@@ -348,7 +381,9 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
     userId: number,
   ): Promise<OrderDetailRecord | null> {
     const orders = await this.prisma.$queryRaw<OrderRow[]>`
-      SELECT "id", "status", "total", "createdAt", "expiresAt"
+      SELECT
+        "id", "status", "total", "createdAt", "expiresAt",
+        "recipientName", "recipientPhone"
       FROM "Order"
       WHERE "id" = ${orderId} AND "userId" = ${userId}
       LIMIT 1
@@ -362,6 +397,8 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       total: Number(order.total),
       createdAt: order.createdAt,
       expiresAt: order.expiresAt,
+      recipientName: order.recipientName ?? null,
+      recipientPhone: order.recipientPhone ?? null,
       items,
     };
   }
@@ -370,6 +407,7 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
     const orders = await this.prisma.$queryRaw<OrderRow[]>`
       SELECT
         o."id", o."status", o."total", o."createdAt", o."expiresAt",
+        o."recipientName", o."recipientPhone",
         u."email" AS "userEmail",
         (SELECT p."status" FROM "Payment" p WHERE p."orderId" = o."id" ORDER BY p."createdAt" DESC, p."id" DESC LIMIT 1) AS "paymentStatus"
       FROM "Order" o
@@ -385,21 +423,33 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       total: Number(order.total),
       createdAt: order.createdAt,
       expiresAt: order.expiresAt,
+      recipientName: order.recipientName ?? null,
+      recipientPhone: order.recipientPhone ?? null,
       userEmail: order.userEmail ?? '',
       paymentStatus: order.paymentStatus ?? null,
       items: await this.getOrderItems(orderId),
     };
   }
 
-  async listAdminOrders(page: number, limit: number): Promise<AdminOrderPage> {
+  async listAdminOrders(
+    page: number,
+    limit: number,
+    filters: { dateFrom: Date | null; dateToExclusive: Date | null; status: string | null },
+  ): Promise<AdminOrderPage> {
     const offset = (page - 1) * limit;
+    const { dateFrom, dateToExclusive, status } = filters;
     const [countRows, orders] = await Promise.all([
       this.prisma.$queryRaw<Array<{ total: bigint | number }>>`
-        SELECT COUNT(*) AS "total" FROM "Order"
+        SELECT COUNT(*) AS "total"
+        FROM "Order" o
+        WHERE (${dateFrom}::timestamptz IS NULL OR o."createdAt" >= ${dateFrom})
+          AND (${dateToExclusive}::timestamptz IS NULL OR o."createdAt" < ${dateToExclusive})
+          AND (${status}::text IS NULL OR o."status" = ${status})
       `,
       this.prisma.$queryRaw<Array<OrderRow & { items: OrderItemRow[] }>>`
         SELECT
           o."id", o."status", o."total", o."createdAt", o."expiresAt",
+          o."recipientName", o."recipientPhone",
           u."email" AS "userEmail",
           (SELECT p."status" FROM "Payment" p WHERE p."orderId" = o."id" ORDER BY p."createdAt" DESC, p."id" DESC LIMIT 1) AS "paymentStatus",
           COALESCE((
@@ -410,6 +460,9 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
               'quantity', oi."quantity",
               'size', oi."size",
               'toppings', oi."toppings",
+              'sugarLevel', oi."sugarLevel",
+              'iceLevel', oi."iceLevel",
+              'note', oi."note",
               'unitPrice', oi."unitPrice",
               'subtotal', oi."subtotal"
             ) ORDER BY oi."id")
@@ -419,6 +472,9 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
           ), '[]'::jsonb) AS "items"
         FROM "Order" o
         JOIN "User" u ON u."id" = o."userId"
+        WHERE (${dateFrom}::timestamptz IS NULL OR o."createdAt" >= ${dateFrom})
+          AND (${dateToExclusive}::timestamptz IS NULL OR o."createdAt" < ${dateToExclusive})
+          AND (${status}::text IS NULL OR o."status" = ${status})
         ORDER BY o."createdAt" DESC, o."id" DESC
         LIMIT ${limit} OFFSET ${offset}
       `,
@@ -431,6 +487,8 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       total: Number(order.total),
       createdAt: order.createdAt,
       expiresAt: order.expiresAt,
+      recipientName: order.recipientName ?? null,
+      recipientPhone: order.recipientPhone ?? null,
       userEmail: order.userEmail ?? '',
       paymentStatus: order.paymentStatus ?? null,
       items: mapItems(order.items ?? []),
@@ -479,7 +537,8 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
     const rows = await this.prisma.$queryRaw<OrderItemRow[]>`
       SELECT
         oi."recipeId", oi."recipeName", oi."productId", product."name" AS "productName",
-        oi."quantity", oi."size", oi."toppings", oi."unitPrice", oi."subtotal"
+        oi."quantity", oi."size", oi."toppings", oi."unitPrice", oi."subtotal",
+        oi."sugarLevel", oi."iceLevel", oi."note"
       FROM "OrderItem" oi
       LEFT JOIN "Product" product ON product."id" = oi."productId"
       WHERE oi."orderId" = ${orderId}

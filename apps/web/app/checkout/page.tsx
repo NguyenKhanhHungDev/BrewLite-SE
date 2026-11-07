@@ -19,6 +19,11 @@ export default function CheckoutPage() {
   const checkout = useCheckout();
   const [error, setError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+  const [recipientInput, setRecipientInput] = useState<{
+    owner: number | undefined;
+    name: string;
+    phone: string;
+  } | null>(null);
   const owned =
     checkout.purchase?.owner === auth.session?.userId
       ? checkout.purchase
@@ -30,6 +35,17 @@ export default function CheckoutPage() {
       : null;
   const draft =
     checkout.draft?.owner === auth.session?.userId ? checkout.draft : null;
+  // Restore asynchronously loaded drafts without copying state in an effect.
+  // Edits belong to the signed-in user and survive draft/status transitions.
+  const savedRecipient = draft ?? owned;
+  const editedRecipient = recipientInput?.owner === auth.session?.userId
+    ? recipientInput
+    : null;
+  const recipientName = editedRecipient?.name ?? savedRecipient?.recipientName ?? "";
+  const recipientPhone = editedRecipient?.phone ?? savedRecipient?.recipientPhone ?? "";
+  function editRecipient(name: string, phone: string) {
+    setRecipientInput({ owner: auth.session?.userId, name, phone });
+  }
   const promoCode =
     purchase?.promoCode ?? draft?.promoCode ?? checkout.appliedCode;
   const summaryLines = purchase?.snapshot ?? draft?.snapshot ?? cart.lines;
@@ -43,8 +59,14 @@ export default function CheckoutPage() {
 
   async function createOrder() {
     setError("");
+    editRecipient(recipientName, recipientPhone);
     try {
-      await checkout.createOrder(cart.lines, checkout.appliedCode || undefined);
+      await checkout.createOrder(
+        cart.lines,
+        recipientName,
+        recipientPhone,
+        checkout.appliedCode || undefined,
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không tạo được đơn.");
     }
@@ -114,6 +136,35 @@ export default function CheckoutPage() {
                 ) : !purchase ? (
                   <>
                     <h2>Xác nhận đơn hàng</h2>
+                      <fieldset className="bl-checkout-recipient" disabled={busy || Boolean(draft?.recipientName && draft?.recipientPhone)}>
+                      <legend>Thông tin người nhận tại quầy</legend>
+                      <label>
+                        Họ và tên
+                        <input
+                          type="text"
+                          value={recipientName}
+                          onChange={(event) => editRecipient(event.target.value, recipientPhone)}
+                          minLength={2}
+                          maxLength={100}
+                          autoComplete="name"
+                          required
+                        />
+                      </label>
+                      <label>
+                        Số điện thoại
+                        <input
+                          type="tel"
+                          value={recipientPhone}
+                          onChange={(event) => editRecipient(recipientName, event.target.value)}
+                          maxLength={30}
+                          autoComplete="tel"
+                          inputMode="tel"
+                          placeholder="0901234567"
+                          required
+                        />
+                      </label>
+                      <p className="bl-muted">Thông tin này được lưu riêng theo đơn hàng để quán xác nhận người nhận.</p>
+                    </fieldset>
                     {draft && (
                       <p className="bl-alert">
                         Yêu cầu trước chưa có kết quả. Kiểm tra lại để nhận đúng

@@ -1,5 +1,6 @@
 import { paidStatuses, statusNames, type OrderRecord } from "@/lib/orders";
 import { money, optionText } from "@/lib/pricing";
+import ItemPreferences from "./ItemPreferences";
 
 export default function OrderCard({ order }: { order: OrderRecord }) {
   const subtotal = order.items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -20,6 +21,15 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
         </span>
       </div>
       <p>{statusNames[order.status]}</p>
+      {order.recipientName || order.recipientPhone ? (
+        <div className="bl-order-recipient">
+          <strong>Người nhận</strong>
+          {order.recipientName && <span>{order.recipientName}</span>}
+          {order.recipientPhone && <span>{order.recipientPhone}</span>}
+        </div>
+      ) : (
+        <p className="bl-muted">Đơn cũ chưa lưu thông tin người nhận.</p>
+      )}
       {order.items.map((item, index) => (
         <div className="bl-summary-line" key={`${item.productId}-${index}`}>
           <div>
@@ -27,6 +37,7 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
               {item.quantity} × {item.recipeName}
             </strong>
             <small>{optionText(item.size, item.toppings)}</small>
+            <ItemPreferences value={item} />
             <small>Đơn giá đã chốt: {money(item.unitPrice)}</small>
           </div>
           <strong>{money(item.subtotal)}</strong>
