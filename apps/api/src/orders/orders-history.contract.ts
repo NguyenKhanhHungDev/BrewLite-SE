@@ -1,3 +1,5 @@
+import type { OrderPreferences } from './order-preferences.js';
+
 export interface OrderHistoryRecord {
   id: number;
   status: string;
@@ -5,7 +7,7 @@ export interface OrderHistoryRecord {
   createdAt: Date;
   recipientName: string | null;
   recipientPhone: string | null;
-  items: Array<{
+  items: Array<OrderPreferences & {
     recipeId: number | null;
     recipeName: string;
     productId: number | null;

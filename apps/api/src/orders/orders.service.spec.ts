@@ -117,6 +117,29 @@ describe('A1-06 OrdersService', () => {
   });
 
 
+  it('preserves recipient and preferences and rejects changed idempotent requests', async () => {
+    const { service, saveOrder } = makeTestService();
+    const body = {
+      ...recipient,
+      items: [{ productId: 1, quantity: 1, sugarLevel: 50, iceLevel: 'LESS', note: '  Mang di  ' }],
+    };
+    const first = await service.create(7, body, 'preferences-recipient');
+    expect(saveOrder).toHaveBeenCalledWith(expect.objectContaining({
+      ...recipient,
+      items: [expect.objectContaining({ sugarLevel: 50, iceLevel: 'LESS', note: 'Mang di', subtotal: 25000 })],
+    }));
+    await expect(service.create(7, body, 'preferences-recipient')).resolves.toEqual(first);
+    expect(saveOrder).toHaveBeenCalledTimes(1);
+    for (const change of [{ sugarLevel: 0 }, { iceLevel: 'NONE' }, { note: 'Other' }]) {
+      await expect(service.create(7, {
+        ...body, items: [{ ...body.items[0], ...change }],
+      }, 'preferences-recipient')).rejects.toThrow(/Idempotency-Key/);
+    }
+    await expect(service.create(7, {
+      ...body, recipientPhone: '0907654321',
+    }, 'preferences-recipient')).rejects.toThrow(/Idempotency-Key/);
+  });
+
   it('requires valid recipient information and normalizes phone formatting', async () => {
     const { service, saveOrder } = makeTestService();
     await expect(

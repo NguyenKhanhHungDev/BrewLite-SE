@@ -1,4 +1,5 @@
 import { isObject } from "./api";
+import { parsePreferences, type Preferences } from "./preferences";
 import { isSize, isToppings, type Size, type Topping } from "./pricing";
 
 export type OrderStatus =
@@ -21,7 +22,7 @@ export type OrderRecord = {
   createdAt: string;
   recipientName: string | null;
   recipientPhone: string | null;
-  items: {
+  items: (Preferences & {
     productId: number;
     recipeName: string;
     quantity: number;
@@ -29,7 +30,7 @@ export type OrderRecord = {
     toppings: Topping[];
     unitPrice: number;
     subtotal: number;
-  }[];
+  })[];
 };
 export type PaymentMethod = "WALLET" | "CARD";
 export type SimulateResult = "SUCCESS" | "FAILURE";
@@ -109,6 +110,7 @@ export function parseHistory(value: unknown): OrderRecord[] {
         throw new Error("Chi tiết đơn hàng không hợp lệ.");
       }
       return {
+        ...parsePreferences(item),
         productId: integer(item.recipeId, 1)
           ? item.recipeId
           : Number(item.productId),

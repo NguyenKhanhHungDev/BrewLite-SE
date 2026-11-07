@@ -1,5 +1,6 @@
 import { paidStatuses, statusNames, type OrderRecord } from "@/lib/orders";
 import { money, optionText } from "@/lib/pricing";
+import ItemPreferences from "./ItemPreferences";
 
 export default function OrderCard({ order }: { order: OrderRecord }) {
   const subtotal = order.items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -36,6 +37,7 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
               {item.quantity} × {item.recipeName}
             </strong>
             <small>{optionText(item.size, item.toppings)}</small>
+            <ItemPreferences value={item} />
             <small>Đơn giá đã chốt: {money(item.unitPrice)}</small>
           </div>
           <strong>{money(item.subtotal)}</strong>

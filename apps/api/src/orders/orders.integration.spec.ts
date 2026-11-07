@@ -441,13 +441,15 @@ describe.skipIf(!integrationEnabled)(
         const admin = await createUserAndLogin('ADMIN');
         const ing = await createIngredient(`Perm-${randomUUID()}`, 'g', 1000);
         const recipe = await createRecipe(`Perm-${randomUUID()}`, 25000, [[ing, 20]]);
-        const created = await post(a.token, { items: [item(recipe, 1)] }).expect(201);
+        const preferences = { sugarLevel: 50, iceLevel: 'LESS', note: 'Mang di' };
+        const created = await post(a.token, { items: [{ ...item(recipe, 1), ...preferences }] }).expect(201);
         const id = created.body.orderId as number;
 
         const customerDetail = await http.get(`/orders/${id}`).set('Authorization', `Bearer ${a.token}`).expect(200);
         expect(customerDetail.body).toMatchObject({
           recipientName: 'Integration Customer',
           recipientPhone: '0901234567',
+          items: [expect.objectContaining(preferences)],
         });
         await http.get(`/orders/${id}`).set('Authorization', `Bearer ${b.token}`).expect(404);
         await http.get(`/orders/${id}`).set('Authorization', `Bearer ${admin.token}`).expect(200);
@@ -460,12 +462,13 @@ describe.skipIf(!integrationEnabled)(
         const found = (list.body.data as Array<{ id: number }>).find((o) => o.id === id);
         expect(found).toMatchObject({
           userEmail: a.email, paymentStatus: null,
-          items: [expect.objectContaining({ recipeId: recipe, recipeName: expect.any(String), unitPrice: 25000, subtotal: 25000 })],
+          items: [expect.objectContaining({ ...preferences, recipeId: recipe, recipeName: expect.any(String), unitPrice: 25000, subtotal: 25000 })],
         });
         const adminDetail = await http.get(`/admin/orders/${id}`).set('Authorization', `Bearer ${admin.token}`).expect(200);
         expect(adminDetail.body).toMatchObject({
           recipientName: 'Integration Customer',
           recipientPhone: '0901234567',
+          items: [expect.objectContaining(preferences)],
         });
 
         // limit is capped at 50, page must be positive.
@@ -505,7 +508,9 @@ describe.skipIf(!integrationEnabled)(
           http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`).send({ status: 'PREPARING' }),
           http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`).send({ status: 'PREPARING' }),
         ]);
-        expect(competingUpdates.map((response) => response.status).sort((a, b) => a - b)).toEqual([200, 409]);
+        // The loser may fail validation before the conditional write (400), or lose the write (409).
+        expect(competingUpdates.filter((response) => response.status === 200)).toHaveLength(1);
+        expect(competingUpdates.filter((response) => [400, 409].includes(response.status))).toHaveLength(1);
         await http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`)
           .send({ status: 'COMPLETED' }).expect(400);
         await http.patch(`/admin/orders/${id}/status`).set('Authorization', `Bearer ${admin.token}`)
@@ -514,6 +519,13 @@ describe.skipIf(!integrationEnabled)(
           .send({ status: 'COMPLETED' }).expect(200);
         const completed = await http.get(`/orders/${id}`).set('Authorization', `Bearer ${a.token}`).expect(200);
         expect(completed.body.status).toBe('COMPLETED');
+        const history = await http.get('/orders/me').set('Authorization', `Bearer ${a.token}`).expect(200);
+        expect(history.body).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            id, recipientName: 'Integration Customer', recipientPhone: '0901234567',
+            items: [expect.objectContaining(preferences)],
+          }),
+        ]));
 
         // /auth/me reports the DB role; demoting takes effect with the same token.
         const me = await http.get('/auth/me').set('Authorization', `Bearer ${admin.token}`).expect(200);

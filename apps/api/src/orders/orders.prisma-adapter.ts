@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
+import type { OrderPreferences } from './order-preferences.js';
 import type {
   AdminOrderPage,
   AdminOrderRecord,
@@ -64,7 +65,7 @@ interface OrderRow {
   paymentStatus?: string | null;
 }
 
-interface OrderItemRow {
+interface OrderItemRow extends OrderPreferences {
   recipeId: number | null;
   recipeName: string | null;
   productId: number | null;
@@ -154,6 +155,9 @@ function mapItems(rows: OrderItemRow[]) {
           : Number(row.recipeId)
         : Number(row.productId),
     quantity: Number(row.quantity),
+    sugarLevel: row.sugarLevel ?? null,
+    iceLevel: row.iceLevel ?? null,
+    note: row.note ?? null,
     size: row.size,
     toppings: Array.isArray(row.toppings)
       ? row.toppings.filter(
@@ -351,12 +355,14 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
         await tx.$executeRaw`
           INSERT INTO "OrderItem" (
             "orderId", "productId", "recipeId", "recipeName",
-            "quantity", "size", "toppings", "unitPrice", "subtotal"
+            "quantity", "size", "toppings", "unitPrice", "subtotal",
+            "sugarLevel", "iceLevel", "note"
           )
           VALUES (
             ${order.id}, NULL, ${line.productId}, ${line.recipeName},
             ${line.quantity}, ${line.size}, ${JSON.stringify(line.toppings)}::jsonb,
-            ${line.unitPrice}, ${line.subtotal}
+            ${line.unitPrice}, ${line.subtotal},
+            ${line.sugarLevel ?? null}, ${line.iceLevel ?? null}, ${line.note ?? null}
           )
         `;
       }
@@ -454,6 +460,9 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
               'quantity', oi."quantity",
               'size', oi."size",
               'toppings', oi."toppings",
+              'sugarLevel', oi."sugarLevel",
+              'iceLevel', oi."iceLevel",
+              'note', oi."note",
               'unitPrice', oi."unitPrice",
               'subtotal', oi."subtotal"
             ) ORDER BY oi."id")
@@ -528,7 +537,8 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
     const rows = await this.prisma.$queryRaw<OrderItemRow[]>`
       SELECT
         oi."recipeId", oi."recipeName", oi."productId", product."name" AS "productName",
-        oi."quantity", oi."size", oi."toppings", oi."unitPrice", oi."subtotal"
+        oi."quantity", oi."size", oi."toppings", oi."unitPrice", oi."subtotal",
+        oi."sugarLevel", oi."iceLevel", oi."note"
       FROM "OrderItem" oi
       LEFT JOIN "Product" product ON product."id" = oi."productId"
       WHERE oi."orderId" = ${orderId}

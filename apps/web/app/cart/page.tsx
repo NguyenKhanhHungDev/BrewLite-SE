@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCart } from "@/components/CartProvider";
 import ProductImage from "@/components/ProductImage";
 import CartSummary from "@/components/CartSummary";
+import ItemPreferences from "@/components/ItemPreferences";
 import { requestJson } from "@/lib/api";
 import { parseProducts } from "@/lib/products";
 import { money, optionText, unitPrice } from "@/lib/pricing";
@@ -95,6 +96,7 @@ export default function CartPage() {
                     <div className="bl-cart-content">
                       <h2>{line.product.name}</h2>
                       <p>{optionText(line.size, line.toppings)}</p>
+                      <ItemPreferences value={line} />
                       <p>
                         Đơn giá:{" "}
                         {money(

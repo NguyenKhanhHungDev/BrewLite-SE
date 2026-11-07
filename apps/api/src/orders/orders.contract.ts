@@ -1,3 +1,5 @@
+import type { OrderPreferences } from './order-preferences.js';
+
 export type { OrderStatus } from './order-state.js';
 export type Size = 'S' | 'M' | 'L';
 export type Topping = 'PEARL' | 'CREAM';
@@ -30,7 +32,7 @@ export interface ToppingIngredientSnapshot {
   cream: IngredientSnapshot | null;
 }
 
-export interface OrderLine {
+export interface OrderLine extends OrderPreferences {
   /** Client keeps the legacy productId field; it now contains Recipe.id. */
   productId: number;
   recipeName: string;
@@ -72,7 +74,7 @@ export interface OrderDetailRecord {
   expiresAt: Date | null;
   recipientName: string | null;
   recipientPhone: string | null;
-  items: Array<{
+  items: Array<OrderPreferences & {
     recipeId: number | null;
     recipeName: string;
     productId: number | null;

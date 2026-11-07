@@ -25,6 +25,13 @@ import {
 import { isOrderStatus } from './order-state.js';
 import { calculateUnitPrice } from './orders.pricing.js';
 import { applyPromotion } from '../promotions/promotions.service.js';
+import {
+  ICE_LEVELS,
+  MAX_NOTE_LENGTH,
+  SUGAR_LEVELS,
+  type IceLevel,
+  type SugarLevel,
+} from './order-preferences.js';
 
 const MAX_POSTGRES_INT = 2_147_483_647;
 type InputItem = {
@@ -32,6 +39,9 @@ type InputItem = {
   quantity: number;
   size: Size;
   toppings: Topping[];
+  sugarLevel?: SugarLevel;
+  iceLevel?: IceLevel;
+  note?: string;
 };
 type ParsedOrderInput = {
   items: InputItem[];
@@ -86,7 +96,10 @@ function parseOrderInput(body: unknown): ParsedOrderInput {
     if (
       !isObject(item) ||
       Object.keys(item).some(
-        (key) => !['productId', 'quantity', 'size', 'toppings'].includes(key),
+        (key) => ![
+          'productId', 'quantity', 'size', 'toppings',
+          'sugarLevel', 'iceLevel', 'note',
+        ].includes(key),
       )
     ) {
       throw new BadRequestException('Order item không hợp lệ');
@@ -116,11 +129,39 @@ function parseOrderInput(body: unknown): ParsedOrderInput {
     ) {
       throw new BadRequestException('toppings không hợp lệ');
     }
+    if (
+      item.sugarLevel !== undefined &&
+      !SUGAR_LEVELS.includes(item.sugarLevel as SugarLevel)
+    ) {
+      throw new BadRequestException('Mức đường phải là 0, 50 hoặc 100');
+    }
+    if (
+      item.iceLevel !== undefined &&
+      !ICE_LEVELS.includes(item.iceLevel as IceLevel)
+    ) {
+      throw new BadRequestException('Mức đá phải là NONE, LESS hoặc NORMAL');
+    }
+    if (
+      item.note !== undefined &&
+      (typeof item.note !== 'string' || item.note.length > MAX_NOTE_LENGTH)
+    ) {
+      throw new BadRequestException(
+        `Ghi chú phải là chuỗi không quá ${MAX_NOTE_LENGTH} ký tự`,
+      );
+    }
+    const note = typeof item.note === 'string' ? item.note.trim() : '';
     return {
       productId: Number(productId),
       quantity: Number(quantity),
       size,
       toppings: toppings as Topping[],
+      ...(item.sugarLevel === undefined
+        ? {}
+        : { sugarLevel: item.sugarLevel as SugarLevel }),
+      ...(item.iceLevel === undefined
+        ? {}
+        : { iceLevel: item.iceLevel as IceLevel }),
+      ...(note ? { note } : {}),
     };
   });
 
@@ -315,6 +356,9 @@ export class OrdersService {
         quantity: item.quantity,
         size: item.size,
         toppings: item.toppings,
+        sugarLevel: item.sugarLevel ?? null,
+        iceLevel: item.iceLevel ?? null,
+        note: item.note ?? null,
         unitPrice,
         subtotal,
       });
