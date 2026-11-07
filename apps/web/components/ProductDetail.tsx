@@ -1,15 +1,19 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import ProductImage from "@/components/ProductImage";
-import { parseProducts, type Product } from "@/lib/products";
+import ProductImage from "./ProductImage";
+import {
+  parseProduct,
+  type Product,
+} from "@/lib/products";
 import {
   money,
-  sizePrice,
-  toppingPrice,
+  sizeDelta,
+  sizeNames,
   toppingNames,
+  toppingPrice,
   unitPrice,
   type Size,
   type Topping,
@@ -22,328 +26,413 @@ import {
   type IceLevel,
   type SugarLevel,
 } from "@/lib/preferences";
+import { useToast } from "./Toast";
+import {
+  ArrowLeftIcon,
+  PlusIcon,
+  MinusIcon,
+  ExclamationIcon,
+  ShoppingBagIcon,
+  SparklesIcon,
+} from "./Icons";
+
 type ProductState =
   | { status: "loading" }
-  | { status: "error" | "not-found" }
+  | { status: "error" }
+  | { status: "not-found" }
   | { status: "ready"; product: Product };
 
-function DetailLoading() {
-  return (
-    <main className="bl-detail-wrap">
-      <p role="status">Đang tải chi tiết sản phẩm...</p>
-    </main>
-  );
+function getStockBadge(stock: number) {
+  if (stock <= 0) {
+    return { label: "Hết hàng", cls: "bl-badge-out" };
+  }
+  if (stock <= 5) {
+    return { label: `Sắp hết (còn ${stock} ly)`, cls: "bl-badge-low" };
+  }
+  return { label: "Còn hàng", cls: "bl-badge-in" };
 }
 
-export default function ProductDetailPage() {
-  return (
-    <Suspense fallback={<DetailLoading />}>
-      <ProductDetailRoute />
-    </Suspense>
-  );
-}
+export default function ProductDetail({ id: propId }: { id?: string } = {}) {
+  const params = useParams();
+  const id = propId ?? (params?.id as string);
 
-function ProductDetailRoute() {
-  const { id } = useParams<{ id: string }>();
-  return <ProductDetail key={id} id={id} />;
-}
-
-function ProductDetail({ id }: { id: string }) {
   const [state, setState] = useState<ProductState>({ status: "loading" });
   const [size, setSize] = useState<Size>("M");
   const [toppings, setToppings] = useState<Topping[]>([]);
   const [sugarLevel, setSugarLevel] = useState<SugarLevel>(100);
   const [iceLevel, setIceLevel] = useState<IceLevel>("NORMAL");
   const [note, setNote] = useState("");
-  const [quantity, setQuantity] = useState("1");
-  const [message, setMessage] = useState("");
+  const [quantity, setQuantity] = useState(1);
   const [error, setError] = useState("");
-  const timer = useRef<number | null>(null);
   const cart = useCart();
-
-  useEffect(
-    () => () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-    },
-    [],
-  );
+  const toast = useToast();
 
   useEffect(() => {
+    if (!id) return;
     const controller = new AbortController();
-    let disposed = false;
-    const timeout = window.setTimeout(() => controller.abort(), 15_000);
-
-    async function loadProduct() {
-      try {
-        const response = await fetch(
-          `/api/products/${encodeURIComponent(id)}`,
-          {
-            cache: "no-store",
-            signal: controller.signal,
-          },
-        );
-        if (response.status === 404 || response.status === 400) {
-          if (!disposed) setState({ status: "not-found" });
-          return;
+    fetch(`/products/${encodeURIComponent(id)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (res.status === 404) return setState({ status: "not-found" });
+        if (!res.ok) return setState({ status: "error" });
+        const raw = await res.json();
+        setState({ status: "ready", product: parseProduct(raw) });
+      })
+      .catch((err) => {
+        if (!controller.signal.aborted) {
+          console.error(err);
+          setState({ status: "error" });
         }
-        if (!response.ok) throw new Error("Products request failed");
-        const product = parseProducts([await response.json()])[0];
-        const productId = Number(id);
-        if (
-          !/^\d+$/.test(id) ||
-          !Number.isSafeInteger(productId) ||
-          product.id !== productId
-        ) {
-          if (!disposed) setState({ status: "not-found" });
-          return;
-        }
+      });
 
-        if (!disposed) {
-          setState(
-            product ? { status: "ready", product } : { status: "not-found" },
-          );
-        }
-      } catch {
-        if (!disposed) setState({ status: "error" });
-      } finally {
-        window.clearTimeout(timeout);
-      }
-    }
-
-    void loadProduct();
-    return () => {
-      disposed = true;
-      window.clearTimeout(timeout);
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [id]);
 
-  function toggleTopping(topping: Topping) {
-    setToppings((current) =>
-      current.includes(topping)
-        ? current.filter((item) => item !== topping)
-        : [...current, topping],
+  if (state.status === "loading") {
+    return (
+      <main className="bl-flow-wrap">
+        <div className="bl-menu-state" role="status">
+          <span className="bl-spinner-dot" />
+          <p>Đang chuẩn bị thông tin thức uống...</p>
+        </div>
+      </main>
     );
   }
 
-  if (state.status === "loading") return <DetailLoading />;
-
-  if (state.status !== "ready") {
+  if (state.status === "not-found") {
     return (
-      <main className="bl-detail-wrap">
-        <p role="alert">
-          {state.status === "not-found"
-            ? "Không tìm thấy sản phẩm"
-            : "Không tải được chi tiết sản phẩm. Vui lòng thử lại sau."}
-        </p>
-        <Link href="/" className="bl-detail-back">
-          ← Quay lại thực đơn
-        </Link>
+      <main className="bl-flow-wrap">
+        <section className="bl-panel bl-empty">
+          <div className="bl-empty-cart-visual" aria-hidden="true">
+            <ShoppingBagIcon size={48} />
+          </div>
+          <h2>Không tìm thấy món</h2>
+          <p>Món bạn tìm có thể đã ngừng phục vụ hoặc không tồn tại trong thực đơn.</p>
+          <Link href="/" className="bl-button bl-button-primary">
+            Quay về thực đơn
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <main className="bl-flow-wrap">
+        <section className="bl-panel bl-empty">
+          <div className="bl-empty-cart-visual" aria-hidden="true">
+            <ExclamationIcon size={48} />
+          </div>
+          <h2>Không tải được sản phẩm</h2>
+          <p>Có lỗi xảy ra khi tải dữ liệu. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.</p>
+          <Link href="/" className="bl-button bl-button-secondary">
+            Về trang chủ
+          </Link>
+        </section>
       </main>
     );
   }
 
   const { product } = state;
-  let price: number;
-  try {
-    price = unitPrice(product.price, size, toppings);
-  } catch {
-    return (
-      <main className="bl-detail-wrap">
-        <p role="alert">Giá sản phẩm không hợp lệ, chưa thể thêm giỏ.</p>
-        <Link href="/">Quay lại thực đơn</Link>
-      </main>
+  const stock = product.stockBySize?.[size] ?? product.stock;
+  const isSoldOut = stock <= 0;
+
+  function handleQuantityChange(delta: number) {
+    const next = quantity + delta;
+    if (next >= 1 && next <= Math.min(99, stock)) {
+      setQuantity(next);
+      setError("");
+    }
+  }
+
+  function toggleTopping(topping: Topping) {
+    setToppings((prev) =>
+      prev.includes(topping) ? prev.filter((t) => t !== topping) : [...prev, topping],
     );
   }
-  const stock = product.stockBySize?.[size] ?? product.stock;
-  const count = Number(quantity);
-  const validQuantity =
-    quantity.trim() !== "" &&
-    Number.isSafeInteger(count) &&
-    count >= 1 &&
-    count <= Math.min(99, stock);
 
-  function add() {
+  const singlePrice = unitPrice(product.price, size, toppings);
+  const totalPrice = singlePrice * quantity;
+  const stockBadge = getStockBadge(stock);
+
+  function handleAddToCart() {
     setError("");
-    setMessage("");
+    if (isSoldOut) {
+      setError("Món này kích cỡ này hiện đã hết hàng.");
+      return;
+    }
+    if (quantity > stock) {
+      setError(`Chỉ còn ${stock} ly cho kích cỡ này.`);
+      return;
+    }
+
     try {
-      if (!validQuantity)
-        throw new Error(
-          "Số ly phải là số nguyên từ 1–99 và không vượt tồn kho.",
-        );
-      cart.add(product, size, toppings, count, { sugarLevel, iceLevel, note });
-      setMessage(`Đã thêm ${count} ly ${product.name} vào giỏ.`);
-      if (timer.current !== null) window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => setMessage(""), 3000);
+      cart.add(product, size, toppings, quantity, { sugarLevel, iceLevel, note });
+      toast.success(`Đã thêm ${quantity} ly ${product.name} vào giỏ hàng!`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Không thêm được món.");
+      setError(cause instanceof Error ? cause.message : "Không thể thêm vào giỏ hàng.");
     }
   }
 
   return (
-    <main className="bl-detail-wrap">
-      <Link href="/" className="bl-detail-back">
-        ← Quay lại thực đơn
-      </Link>
-      <section className="bl-detail-panel" aria-labelledby="product-name">
-        <div className="bl-detail-image">
-          <ProductImage src={product.imageUrl} name={product.name} hero />
-          {stock === 0 && <span className="bl-soldout">Hết hàng</span>}
+    <main className="bl-flow-wrap bl-detail-page">
+      {/* Back button */}
+      <nav aria-label="Đường dẫn trang">
+        <Link href="/" className="bl-detail-back">
+          <ArrowLeftIcon size={18} />
+          <span>Quay lại thực đơn</span>
+        </Link>
+      </nav>
+
+      <section className="bl-detail-layout" aria-labelledby="product-name">
+        {/* Left Column: Image with badges */}
+        <div className="bl-detail-visual">
+          <div className="bl-detail-image-box">
+            <ProductImage src={product.imageUrl} name={product.name} hero />
+            <div className="bl-detail-image-badges">
+              <span className={`bl-badge-stock ${stockBadge.cls}`}>
+                {stockBadge.label}
+              </span>
+              <span className="bl-badge-artisan">
+                <SparklesIcon size={14} /> Pha chế thủ công
+              </span>
+            </div>
+          </div>
         </div>
-        <div className="bl-detail-content">
-          <p className="bl-eyebrow">Chi tiết đồ uống</p>
-          <h1 id="product-name">{product.name}</h1>
-          <p className="bl-detail-stock">
-            {stock === 0 ? "Hết hàng" : `Còn ${stock} ly size ${size}`}
-          </p>
-          <p className="bl-detail-base-price">
-            Giá size M:{" "}
-            <strong>{product.price.toLocaleString("vi-VN")} VND</strong>
-          </p>
 
-          <fieldset>
-            <legend>Chọn size</legend>
-            <div className="bl-detail-sizes">
-              {(["S", "M", "L"] as const).map((option) => (
-                <label key={option} className="bl-option bl-size-option">
-                  <input
-                    type="radio"
-                    name="size"
-                    value={option}
-                    disabled={sizePrice(product.price, option) === null}
-                    checked={size === option}
-                    onChange={() => setSize(option)}
-                  />
-                  <span>
-                    <strong>Size {option}</strong>
-                    <small>
-                      {sizePrice(product.price, option) === null
-                        ? "Không áp dụng"
-                        : money(sizePrice(product.price, option)!)}
-                    </small>
-                  </span>
-                </label>
-              ))}
+        {/* Right Column: Customization & Add to Cart */}
+        <div className="bl-detail-info">
+          <div className="bl-detail-header">
+            <span className="bl-eyebrow">BrewLite Special Selection</span>
+            <h1 id="product-name">{product.name}</h1>
+            <p className="bl-detail-desc">
+              Được tuyển chọn từ nguồn hạt Robusta & Arabica Cầu Đất nguyên chất,
+              pha chế tỉ mỉ giữ trọn vẹn hương thơm nồng nàn và hậu vị sâu lắng.
+            </p>
+            <div className="bl-detail-base-price">
+              <span className="bl-price-tag">{money(singlePrice)}</span>
+              <span className="bl-price-sub">/ ly (cỡ {size})</span>
             </div>
-          </fieldset>
+          </div>
 
-          <fieldset>
-            <legend>Chọn topping</legend>
-            {(["PEARL", "CREAM"] as const).map((option) => (
-              <label key={option} className="bl-option bl-topping-option">
-                <input
-                  type="checkbox"
-                  checked={toppings.includes(option)}
-                  onChange={() => toggleTopping(option)}
+          <div className="bl-custom-section">
+            {/* Size Selection Group */}
+            <fieldset className="bl-custom-group">
+              <legend className="bl-custom-legend">
+                1. Chọn kích cỡ ly <span className="bl-required">*</span>
+              </legend>
+              <div className="bl-size-grid" role="radiogroup">
+                {(["S", "M", "L"] as const).map((s) => {
+                  const sizeStock = product.stockBySize?.[s] ?? product.stock;
+                  const isSizeDisabled = sizeStock <= 0;
+                  const isSelected = size === s;
+
+                  return (
+                    <label
+                      key={s}
+                      className={`bl-size-card ${isSelected ? "bl-size-card-active" : ""} ${isSizeDisabled ? "bl-size-card-disabled" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="product-size"
+                        value={s}
+                        checked={isSelected}
+                        disabled={isSizeDisabled}
+                        onChange={() => {
+                          setSize(s);
+                          if (quantity > sizeStock && sizeStock > 0) setQuantity(sizeStock);
+                        }}
+                        className="bl-visually-hidden"
+                      />
+                      <div className="bl-size-top">
+                        <strong className="bl-size-code">{s}</strong>
+                        {sizeDelta[s] > 0 && (
+                          <span className="bl-size-extra">
+                            +{sizeDelta[s].toLocaleString("vi-VN")}đ
+                          </span>
+                        )}
+                      </div>
+                      <span className="bl-size-label">{sizeNames[s]}</span>
+                      <small className="bl-size-stock-hint">
+                        {isSizeDisabled ? "Hết hàng" : `Còn ${sizeStock} ly`}
+                      </small>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            {/* Topping Selection Group */}
+            <fieldset className="bl-custom-group">
+              <legend className="bl-custom-legend">
+                2. Thêm topping đậm đà <span className="bl-optional">(Tùy chọn)</span>
+              </legend>
+              <div className="bl-topping-list">
+                {(["PEARL", "CREAM"] as const).map((option) => {
+                  const isChecked = toppings.includes(option);
+                  return (
+                    <label
+                      key={option}
+                      className={`bl-topping-card ${isChecked ? "bl-topping-card-active" : ""}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleTopping(option)}
+                        className="bl-checkbox"
+                      />
+                      <div className="bl-topping-info">
+                        <span className="bl-topping-name">{toppingNames[option]}</span>
+                        <small className="bl-topping-desc">
+                          {option === "PEARL" ? "Dai giòn ngọt thanh thơm lừng" : "Béo ngậy sánh mịn"}
+                        </small>
+                      </div>
+                      <strong className="bl-topping-price">
+                        +{toppingPrice[option].toLocaleString("vi-VN")}đ
+                      </strong>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            {/* Customer Barista Note / Preferences */}
+            <fieldset className="bl-custom-group">
+              <legend className="bl-custom-legend">
+                3. Khẩu vị pha chế <span className="bl-optional">(Tùy chỉnh riêng)</span>
+              </legend>
+              <div className="bl-preference-grid">
+                <label className="bl-field-select-wrap">
+                  <span className="bl-field-label">Lượng đường:</span>
+                  <select
+                    value={sugarLevel ?? 100}
+                    onChange={(e) => setSugarLevel(Number(e.target.value) as SugarLevel)}
+                    className="bl-select"
+                  >
+                    {sugarOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="bl-field-select-wrap">
+                  <span className="bl-field-label">Lượng đá:</span>
+                  <select
+                    value={iceLevel ?? "NORMAL"}
+                    onChange={(e) => setIceLevel(e.target.value as IceLevel)}
+                    className="bl-select"
+                  >
+                    {iceOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <label className="bl-field" style={{ marginTop: "1rem", display: "block" }}>
+                <span className="bl-field-label" style={{ display: "block", marginBottom: "0.25rem" }}>
+                  Ghi chú cho Barista:
+                </span>
+                <textarea
+                  rows={2}
+                  maxLength={MAX_NOTE_LENGTH}
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="Ví dụ: để riêng topping, ít sữa đặc..."
+                  className="bl-input"
+                  style={{ width: "100%", resize: "vertical" }}
                 />
-                <span>{toppingNames[option]}</span>
-                <small>+{toppingPrice[option].toLocaleString("vi-VN")}đ</small>
               </label>
-            ))}
-          </fieldset>
+              <p className="bl-muted" style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>
+                {note.length}/{MAX_NOTE_LENGTH} ký tự. Khẩu vị không phụ thu thêm phí.
+              </p>
+            </fieldset>
 
-          <fieldset>
-            <legend>Chọn đường</legend>
-            <div className="bl-preference-options">
-              {sugarOptions.map((option) => (
-                <label key={option.value} className="bl-option">
-                  <input
-                    type="radio"
-                    name="sugarLevel"
-                    value={option.value}
-                    checked={sugarLevel === option.value}
-                    onChange={() => setSugarLevel(option.value)}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Chọn đá</legend>
-            <div className="bl-preference-options">
-              {iceOptions.map((option) => (
-                <label key={option.value} className="bl-option">
-                  <input
-                    type="radio"
-                    name="iceLevel"
-                    value={option.value}
-                    checked={iceLevel === option.value}
-                    onChange={() => setIceLevel(option.value)}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <label className="bl-field">
-            Ghi chú cho món
-            <textarea
-              rows={3}
-              maxLength={MAX_NOTE_LENGTH}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Ví dụ: để riêng topping"
-              aria-describedby="item-note-help"
-            />
-          </label>
-          <p id="item-note-help" className="bl-muted">
-            {note.length}/{MAX_NOTE_LENGTH} ký tự. Khẩu vị không phụ thu.
-            Quán sẽ xem ghi chú và đáp ứng khi có thể.
-          </p>
+            {/* Quantity and Desktop Price Breakdown */}
+            <div className="bl-detail-purchase-box">
+              <div className="bl-quantity-row">
+                <span className="bl-field-label">Số lượng:</span>
+                <div className="bl-quantity-stepper bl-stepper-lg" role="group" aria-label="Số lượng ly">
+                  <button
+                    type="button"
+                    className="bl-stepper-btn"
+                    disabled={quantity <= 1 || isSoldOut}
+                    onClick={() => handleQuantityChange(-1)}
+                    aria-label="Giảm 1 ly"
+                  >
+                    <MinusIcon size={18} />
+                  </button>
+                  <span className="bl-stepper-val" aria-label={`Số ly: ${quantity}`}>
+                    {quantity}
+                  </span>
+                  <button
+                    type="button"
+                    className="bl-stepper-btn"
+                    disabled={quantity >= Math.min(99, stock) || isSoldOut}
+                    onClick={() => handleQuantityChange(1)}
+                    aria-label="Tăng 1 ly"
+                  >
+                    <PlusIcon size={18} />
+                  </button>
+                </div>
+              </div>
 
-          <p className="bl-detail-total" aria-live="polite" aria-atomic="true">
-            <span>Giá tạm tính / ly</span>
-            <strong>{money(price)}</strong>
-          </p>
-          <label className="bl-field bl-detail-quantity">
-            Số ly
-            <input
-              type="number"
-              min={1}
-              max={Math.min(99, stock)}
-              step={1}
-              value={quantity}
-              disabled={stock === 0}
-              onChange={(event) => setQuantity(event.target.value)}
-              aria-describedby="quantity-help"
-            />
-          </label>
-          <p id="quantity-help" className="bl-muted">
-            Từ 1–99 ly, không vượt số lượng còn hàng.
-          </p>
-          <p className="bl-detail-total">
-            <span>Thành tiền</span>
-            <strong>{validQuantity ? money(price * count) : "—"}</strong>
-          </p>
-          {error && (
-            <p className="bl-alert bl-alert-error" role="alert">
-              {error}
-            </p>
-          )}
-          {message && (
-            <p className="bl-alert" role="status">
-              {message}
-            </p>
-          )}
-          <div className="bl-actions">
-            <button
-              className="bl-button"
-              type="button"
-              disabled={!cart.ready || stock === 0}
-              onClick={add}
-            >
-              Thêm vào giỏ
-            </button>
-            <Link href="/cart" className="bl-button bl-button-secondary">
-              Xem giỏ hàng
-            </Link>
-            <Link href="/" className="bl-detail-back">
-              Tiếp tục chọn món
-            </Link>
+              <div className="bl-price-calc-box">
+                <div className="bl-calc-line">
+                  <span>Đơn giá tùy chọn ({quantity} ly):</span>
+                  <strong>{money(totalPrice)}</strong>
+                </div>
+              </div>
+
+              {error && (
+                <p className="bl-alert bl-alert-error" role="alert">
+                  <ExclamationIcon size={16} /> {error}
+                </p>
+              )}
+
+              <div className="bl-actions bl-desktop-actions">
+                <button
+                  className="bl-button bl-button-primary bl-btn-add-main"
+                  type="button"
+                  disabled={!cart.ready || isSoldOut}
+                  onClick={handleAddToCart}
+                >
+                  <ShoppingBagIcon size={20} />
+                  <span>Thêm vào giỏ ({money(totalPrice)})</span>
+                </button>
+                <Link href="/cart" className="bl-button bl-button-secondary">
+                  Xem giỏ hàng
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>
+
+      {/* Mobile Sticky Bottom Bar */}
+      <div className="bl-mobile-bottom-bar" aria-label="Thanh đặt hàng nhanh">
+        <div className="bl-mobile-bottom-inner">
+          <div className="bl-mobile-price-group">
+            <span className="bl-mobile-price-label">Tổng ({quantity} ly):</span>
+            <strong className="bl-mobile-price-val">{money(totalPrice)}</strong>
+          </div>
+          <button
+            type="button"
+            className="bl-button bl-button-primary bl-mobile-btn-add"
+            disabled={!cart.ready || isSoldOut}
+            onClick={handleAddToCart}
+          >
+            <ShoppingBagIcon size={18} />
+            <span>Thêm giỏ</span>
+          </button>
+        </div>
+      </div>
     </main>
   );
 }

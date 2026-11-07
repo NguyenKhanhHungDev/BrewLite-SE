@@ -10,6 +10,13 @@ export type Product = {
   stockBySize?: Record<"S" | "M" | "L", number>;
 };
 
+export type ProductStockStatus = "OUT_OF_STOCK" | "LOW_STOCK" | "IN_STOCK";
+
+export function parseProduct(value: unknown): Product {
+  const products = parseProducts([value]);
+  return products[0];
+}
+
 export function parseProducts(value: unknown): Product[] {
   if (!Array.isArray(value)) throw new Error("Invalid products response");
   const ids = new Set<number>();
