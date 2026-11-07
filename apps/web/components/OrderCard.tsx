@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { paidStatuses, statusNames, type OrderRecord } from "@/lib/orders";
 import { money, optionText } from "@/lib/pricing";
 import ItemPreferences from "./ItemPreferences";
@@ -20,6 +21,9 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
           {order.status}
         </span>
       </div>
+      <Link href={`/payment/result?orderId=${order.id}`}>
+        Xem thông tin thanh toán
+      </Link>
       <p>{statusNames[order.status]}</p>
       {order.recipientName || order.recipientPhone ? (
         <div className="bl-order-recipient">

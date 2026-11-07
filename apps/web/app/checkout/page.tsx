@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCart } from "@/components/CartProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { useCheckout } from "@/components/CheckoutProvider";
+import PaymentDetails from "@/components/PaymentDetails";
 import CartSummary from "@/components/CartSummary";
 import PromotionField from "@/components/PromotionField";
 import LoyaltyBalance from "@/components/LoyaltyBalance";
@@ -124,6 +125,13 @@ export default function CheckoutPage() {
             </section>
           ) : (
             <div className="bl-flow-grid">
+              {purchase && (
+                <PaymentDetails
+                  key={purchase.orderId}
+                  orderId={purchase.orderId}
+                  onStatus={checkout.syncPayment}
+                />
+              )}
               <section className="bl-panel" aria-busy={busy}>
                 {!auth.session ? (
                   <>
