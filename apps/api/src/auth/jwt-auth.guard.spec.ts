@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { UnauthorizedException, type ExecutionContext } from '@nestjs/common';
 import type { JwtService } from '@nestjs/jwt';
+import type { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 
 type FakeRequest = {
@@ -17,29 +18,44 @@ function fakeContext(request: FakeRequest): ExecutionContext {
 describe('JwtAuthGuard', () => {
   it('từ chối khi không có token (401)', async () => {
     const jwt = { verifyAsync: vi.fn() } as unknown as JwtService;
-    const guard = new JwtAuthGuard(jwt);
-    await expect(guard.canActivate(fakeContext({ headers: {} })))
-      .rejects.toBeInstanceOf(UnauthorizedException);
+    const guard = new JwtAuthGuard(jwt, {
+      isSessionCurrent: vi.fn().mockResolvedValue(true),
+    } as unknown as AuthService);
+    await expect(
+      guard.canActivate(fakeContext({ headers: {} })),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('từ chối Bearer token sai (401)', async () => {
     const jwt = {
       verifyAsync: vi.fn().mockRejectedValue(new Error('invalid signature')),
     } as unknown as JwtService;
-    const guard = new JwtAuthGuard(jwt);
-    await expect(guard.canActivate(fakeContext({
-      headers: { authorization: 'Bearer bad-token' },
-    }))).rejects.toBeInstanceOf(UnauthorizedException);
+    const guard = new JwtAuthGuard(jwt, {
+      isSessionCurrent: vi.fn().mockResolvedValue(true),
+    } as unknown as AuthService);
+    await expect(
+      guard.canActivate(
+        fakeContext({
+          headers: { authorization: 'Bearer bad-token' },
+        }),
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('từ chối token có sub không hợp lệ (401)', async () => {
     const jwt = {
       verifyAsync: vi.fn().mockResolvedValue({ sub: -1 }),
     } as unknown as JwtService;
-    const guard = new JwtAuthGuard(jwt);
-    await expect(guard.canActivate(fakeContext({
-      headers: { authorization: 'Bearer token' },
-    }))).rejects.toBeInstanceOf(UnauthorizedException);
+    const guard = new JwtAuthGuard(jwt, {
+      isSessionCurrent: vi.fn().mockResolvedValue(true),
+    } as unknown as AuthService);
+    await expect(
+      guard.canActivate(
+        fakeContext({
+          headers: { authorization: 'Bearer token' },
+        }),
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('chấp nhận JWT đúng, lấy sub làm user.id', async () => {
@@ -49,8 +65,25 @@ describe('JwtAuthGuard', () => {
     const request: FakeRequest = {
       headers: { authorization: 'Bearer valid-token' },
     };
-    const guard = new JwtAuthGuard(jwt);
+    const guard = new JwtAuthGuard(jwt, {
+      isSessionCurrent: vi.fn().mockResolvedValue(true),
+    } as unknown as AuthService);
     await expect(guard.canActivate(fakeContext(request))).resolves.toBe(true);
     expect(request.user).toEqual({ id: 42 });
   });
+});
+it('rejects revoked JWT even when signature and expiry are valid', async () => {
+  const jwt = {
+    verifyAsync: vi.fn().mockResolvedValue({ sub: 42, sessionVersion: 0 }),
+  } as unknown as JwtService;
+  const isSessionCurrent = vi.fn().mockResolvedValue(false);
+  const guard = new JwtAuthGuard(jwt, {
+    isSessionCurrent,
+  } as unknown as AuthService);
+  await expect(
+    guard.canActivate(
+      fakeContext({ headers: { authorization: 'Bearer old' } }),
+    ),
+  ).rejects.toBeInstanceOf(UnauthorizedException);
+  expect(isSessionCurrent).toHaveBeenCalledWith(42, 0);
 });

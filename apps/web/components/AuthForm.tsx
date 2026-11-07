@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ApiError, isObject, requestJson } from "@/lib/api";
+import PasswordField from "./PasswordField";
 import { useAuth } from "./AuthProvider";
 
 export default function AuthForm() {
@@ -12,6 +13,7 @@ export default function AuthForm() {
   const requested = params.get("next") ?? "/";
   const next =
     [
+      "/account",
       "/checkout",
       "/history",
       "/cart",
@@ -28,12 +30,17 @@ export default function AuthForm() {
   const [register, setRegister] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    if (register && password !== confirmation) {
+      setError("Mật khẩu xác nhận không khớp.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -107,18 +114,22 @@ export default function AuthForm() {
                 disabled={busy}
               />
             </label>
-            <label className="bl-field">
-              Mật khẩu
-              <input
-                type="password"
-                autoComplete={register ? "new-password" : "current-password"}
-                required
-                minLength={register ? 8 : 1}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+            <PasswordField
+              label="Mật khẩu"
+              value={password}
+              onChange={setPassword}
+              disabled={busy}
+              minLength={register ? 8 : 1}
+              autoComplete={register ? "new-password" : "current-password"}
+            />
+            {register && (
+              <PasswordField
+                label="Xác nhận mật khẩu"
+                value={confirmation}
+                onChange={setConfirmation}
                 disabled={busy}
               />
-            </label>
+            )}
             {register && (
               <p className="bl-muted">Mật khẩu có ít nhất 8 ký tự.</p>
             )}
@@ -140,6 +151,7 @@ export default function AuthForm() {
               disabled={busy}
               onClick={() => {
                 setRegister(!register);
+                setConfirmation("");
                 setError("");
               }}
             >
