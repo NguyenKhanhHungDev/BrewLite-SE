@@ -41,7 +41,7 @@ export default function MenuCatalog() {
   return (
     <>
       <MenuHero
-        product={state.status === "success" ? state.products[0] : undefined}
+        products={state.status === "success" ? state.products : undefined}
       />
       <MenuList state={state} onRetry={retry} />
     </>
