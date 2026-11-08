@@ -2,6 +2,11 @@ export type Size = "S" | "M" | "L";
 export type Topping = "PEARL" | "CREAM";
 
 export const sizeDelta: Record<Size, number> = { S: -5000, M: 0, L: 5000 };
+export const sizeNames: Record<Size, string> = {
+  S: "Nhỏ (S)",
+  M: "Vừa (M)",
+  L: "Lớn (L)",
+};
 export const toppingPrice: Record<Topping, number> = {
   PEARL: 5000,
   CREAM: 7000,
