@@ -15,6 +15,17 @@ services:
       retries: 15
     # Không publish cổng DB ra host để tránh đụng PostgreSQL 5432/5433.
 
+  migrate:
+    build:
+      context: ./apps/api
+      target: migration
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
     build:
       context: ./apps/api
@@ -22,6 +33,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?schema=public
       JWT_SECRET: ${JWT_SECRET}
+      # Shared only between servers; this fallback is for the local demo.
+      BFF_PROXY_SECRET: ${BFF_PROXY_SECRET:-brewlite-local-demo-bff-proxy-only-2026}
       PORT: 3001
       ZALOPAY_APP_ID: ${ZALOPAY_APP_ID:-}
       ZALOPAY_KEY1: ${ZALOPAY_KEY1:-}
@@ -40,12 +53,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   web:
     build:
       context: ./apps/web
       args:
         API_INTERNAL_URL: http://api:3001
+    environment:
+      API_INTERNAL_URL: http://api:3001
+      BFF_PROXY_SECRET: ${BFF_PROXY_SECRET:-brewlite-local-demo-bff-proxy-only-2026}
+      APP_ORIGIN: ${APP_ORIGIN:-}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"

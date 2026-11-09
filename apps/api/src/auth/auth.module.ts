@@ -1,3 +1,4 @@
+import { AuthThrottleGuard } from './auth-throttle.guard.js';
 import * as dotenv from 'dotenv';
 dotenv.config();
 import { Module } from '@nestjs/common';
@@ -16,7 +17,7 @@ if (!secret) throw new Error('JWT_SECRET is missing');
     signOptions: { expiresIn: '1h' },
   })],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, AdminClaimGuard, AdminGuard],
+  providers: [AuthThrottleGuard, AuthService, JwtAuthGuard, AdminClaimGuard, AdminGuard],
   exports: [AuthService, JwtModule, JwtAuthGuard, AdminClaimGuard, AdminGuard],
 })
 export class AuthModule {}

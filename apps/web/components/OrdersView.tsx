@@ -51,7 +51,7 @@ export default function OrdersView({ orderId }: { orderId?: string }) {
         </h1>
       </div>
 
-      {!auth.session ? (
+      {auth.loading ? <p role="status">Đang khôi phục phiên đăng nhập…</p> : !auth.session ? (
         <section className="bl-panel bl-empty">
           <div className="bl-empty-cart-visual" aria-hidden="true">
             <ShoppingBagIcon size={52} strokeWidth={1.3} />

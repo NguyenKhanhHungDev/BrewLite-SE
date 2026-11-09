@@ -65,6 +65,15 @@ export class AuthService implements OnModuleDestroy {
     };
   }
 
+  async logout(userId: number) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { sessionVersion: { increment: 1 } },
+      select: { id: true },
+    });
+    return { message: 'Đã đăng xuất trên mọi thiết bị.' };
+  }
+
   async onModuleDestroy() {
     await this.prisma.$disconnect();
   }

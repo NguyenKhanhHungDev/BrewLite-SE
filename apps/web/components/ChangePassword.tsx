@@ -1,5 +1,6 @@
 "use client";
 import { useState, type FormEvent } from "react";
+import { passwordFitsBcrypt } from "@/lib/session";
 import { useAuth } from "./AuthProvider";
 import PasswordField from "./PasswordField";
 export default function ChangePassword() {
@@ -12,6 +13,10 @@ export default function ChangePassword() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
+    if (Array.from(newPassword).length < 8 || !passwordFitsBcrypt(newPassword)) {
+      setError("Mật khẩu mới cần ít nhất 8 ký tự và không vượt quá 72 byte UTF-8.");
+      return;
+    }
     if (newPassword !== confirmation) {
       setError("Mật khẩu xác nhận không khớp.");
       return;
@@ -39,7 +44,7 @@ export default function ChangePassword() {
       <h2>Đổi mật khẩu</h2>
       <p>
         Sau khi đổi thành công, đăng nhập lại bằng mật khẩu mới. Mọi phiên đăng
-        nhập cũ sẽ bị thu hồi.
+        nhập cũ sẽ bị thu hồi. Mật khẩu mới tối đa 72 byte UTF-8.
       </p>
       <form onSubmit={submit}>
         <PasswordField

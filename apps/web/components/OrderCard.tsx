@@ -11,7 +11,13 @@ import ItemPreferences from "./ItemPreferences";
 import { parseProducts } from "@/lib/products";
 import { RefreshIcon, ArrowRightIcon } from "./Icons";
 
-export default function OrderCard({ order }: { order: OrderRecord }) {
+export default function OrderCard({
+  order,
+  adminView = false,
+}: {
+  order: OrderRecord;
+  adminView?: boolean;
+}) {
   const [reordering, setReordering] = useState(false);
   const cart = useCart();
   const toast = useToast();
@@ -41,7 +47,9 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
       }
 
       if (addedCount > 0) {
-        toast.success(`Đã thêm ${addedCount} ly từ đơn #${order.id} vào giỏ hàng!`);
+        toast.success(
+          `Đã thêm ${addedCount} ly từ đơn #${order.id} vào giỏ hàng!`,
+        );
       } else {
         toast.error("Các món trong đơn này hiện tạm không có trong thực đơn.");
       }
@@ -53,7 +61,10 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
   }
 
   return (
-    <article className="bl-panel bl-order-card" aria-labelledby={`order-heading-${order.id}`}>
+    <article
+      className="bl-panel bl-order-card"
+      aria-labelledby={`order-heading-${order.id}`}
+    >
       <div className="bl-order-heading">
         <div className="bl-order-title-group">
           <span className="bl-eyebrow">Đơn nhận tại quầy</span>
@@ -89,8 +100,13 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
 
       {/* Recipient info if recorded */}
       {(order.recipientName || order.recipientPhone) && (
-        <div className="bl-order-recipient" style={{ margin: "0.75rem 0", fontSize: "0.9rem" }}>
-          <strong style={{ color: "var(--brand-coffee)" }}>Người nhận tại quầy: </strong>
+        <div
+          className="bl-order-recipient"
+          style={{ margin: "0.75rem 0", fontSize: "0.9rem" }}
+        >
+          <strong style={{ color: "var(--brand-coffee)" }}>
+            Người nhận tại quầy:{" "}
+          </strong>
           <span>
             {order.recipientName}
             {order.recipientPhone ? ` (${order.recipientPhone})` : ""}
@@ -108,9 +124,13 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
               </strong>
               <small>{optionText(item.size, item.toppings)}</small>
               <ItemPreferences value={item} />
-              <small className="bl-unit-price-tag">Đơn giá: {money(item.unitPrice)}</small>
+              <small className="bl-unit-price-tag">
+                Đơn giá: {money(item.unitPrice)}
+              </small>
             </div>
-            <strong className="bl-order-item-total">{money(item.subtotal)}</strong>
+            <strong className="bl-order-item-total">
+              {money(item.subtotal)}
+            </strong>
           </div>
         ))}
       </div>
@@ -136,22 +156,27 @@ export default function OrderCard({ order }: { order: OrderRecord }) {
       </div>
 
       {/* Actions */}
-      <div className="bl-order-actions-bar">
-        <button
-          type="button"
-          className="bl-button bl-button-primary bl-btn-reorder"
-          disabled={reordering}
-          onClick={handleReorder}
-        >
-          <RefreshIcon size={16} />
-          <span>{reordering ? "Đang thêm..." : "Đặt lại món này"}</span>
-        </button>
+      {!adminView && (
+        <div className="bl-order-actions-bar">
+          <button
+            type="button"
+            className="bl-button bl-button-primary bl-btn-reorder"
+            disabled={reordering}
+            onClick={handleReorder}
+          >
+            <RefreshIcon size={16} />
+            <span>{reordering ? "Đang thêm..." : "Đặt lại món này"}</span>
+          </button>
 
-        <Link href={`/payment/result?orderId=${order.id}`} className="bl-button bl-button-secondary">
-          <span>Chi tiết thanh toán</span>
-          <ArrowRightIcon size={16} />
-        </Link>
-      </div>
+          <Link
+            href={`/payment/result?orderId=${order.id}`}
+            className="bl-button bl-button-secondary"
+          >
+            <span>Chi tiết thanh toán</span>
+            <ArrowRightIcon size={16} />
+          </Link>
+        </div>
+      )}
     </article>
   );
 }

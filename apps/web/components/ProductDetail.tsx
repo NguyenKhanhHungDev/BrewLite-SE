@@ -11,6 +11,7 @@ import {
 import {
   money,
   sizeDelta,
+  sizePrice,
   sizeNames,
   toppingNames,
   toppingPrice,
@@ -18,6 +19,8 @@ import {
   type Size,
   type Topping,
 } from "@/lib/pricing";
+import { ApiError, requestJson } from "@/lib/api";
+import { cartKey } from "@/lib/cart";
 import { useCart } from "./CartProvider";
 import {
   iceOptions,
@@ -56,6 +59,7 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
   const params = useParams();
   const id = propId ?? (params?.id as string);
 
+  const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<ProductState>({ status: "loading" });
   const [size, setSize] = useState<Size>("M");
   const [toppings, setToppings] = useState<Topping[]>([]);
@@ -70,25 +74,27 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
   useEffect(() => {
     if (!id) return;
     const controller = new AbortController();
-    fetch(`/products/${encodeURIComponent(id)}`, {
-      cache: "no-store",
+    requestJson(`/api/products/${encodeURIComponent(id)}`, {
       signal: controller.signal,
     })
-      .then(async (res) => {
-        if (res.status === 404) return setState({ status: "not-found" });
-        if (!res.ok) return setState({ status: "error" });
-        const raw = await res.json();
-        setState({ status: "ready", product: parseProduct(raw) });
+      .then((raw) => {
+        if (controller.signal.aborted) return;
+        const product = parseProduct(raw);
+        const sizes: Size[] = ["M", "L", "S"];
+        const valid = sizes.filter((value) => sizePrice(product.price, value) !== null);
+        setSize(valid.find((value) => (product.stockBySize?.[value] ?? product.stock) > 0) ?? valid[0] ?? "M");
+        setQuantity(1);
+        setError("");
+        setState({ status: "ready", product });
       })
-      .catch((err) => {
+      .catch((cause) => {
         if (!controller.signal.aborted) {
-          console.error(err);
-          setState({ status: "error" });
+          setState({ status: cause instanceof ApiError && cause.status === 404 ? "not-found" : "error" });
         }
       });
 
     return () => controller.abort();
-  }, [id]);
+  }, [id, attempt]);
 
   if (state.status === "loading") {
     return (
@@ -127,6 +133,7 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
           </div>
           <h2>Không tải được sản phẩm</h2>
           <p>Có lỗi xảy ra khi tải dữ liệu. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.</p>
+          <button type="button" className="bl-button bl-button-primary" onClick={() => { setState({ status: "loading" }); setAttempt((value) => value + 1); }}>Thử lại</button>
           <Link href="/" className="bl-button bl-button-secondary">
             Về trang chủ
           </Link>
@@ -137,11 +144,16 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
 
   const { product } = state;
   const stock = product.stockBySize?.[size] ?? product.stock;
-  const isSoldOut = stock <= 0;
+  const validPrice = sizePrice(product.price, size) !== null;
+  const usedStock = cart.lines.filter((line) => line.product.id === product.id && line.size === size).reduce((sum, line) => sum + line.quantity, 0);
+  const key = cartKey(product.id, size, toppings, { sugarLevel, iceLevel, note });
+  const existingQuantity = cart.lines.find((line) => line.key === key)?.quantity ?? 0;
+  const maxAdd = Math.max(0, Math.min(99 - existingQuantity, stock - usedStock));
+  const isSoldOut = stock <= 0 || !validPrice;
 
   function handleQuantityChange(delta: number) {
     const next = quantity + delta;
-    if (next >= 1 && next <= Math.min(99, stock)) {
+    if (next >= 1 && (delta < 0 || next <= maxAdd)) {
       setQuantity(next);
       setError("");
     }
@@ -153,18 +165,22 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
     );
   }
 
-  const singlePrice = unitPrice(product.price, size, toppings);
+  const singlePrice = validPrice ? unitPrice(product.price, size, toppings) : 0;
   const totalPrice = singlePrice * quantity;
   const stockBadge = getStockBadge(stock);
 
   function handleAddToCart() {
     setError("");
+    if (!cart.ready) {
+      setError("Đang khôi phục giỏ hàng, vui lòng chờ.");
+      return;
+    }
     if (isSoldOut) {
       setError("Món này kích cỡ này hiện đã hết hàng.");
       return;
     }
-    if (quantity > stock) {
-      setError(`Chỉ còn ${stock} ly cho kích cỡ này.`);
+    if (quantity > maxAdd) {
+      setError(`Có thể thêm tối đa ${maxAdd} ly cho lựa chọn này.`);
       return;
     }
 
@@ -226,7 +242,8 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
               <div className="bl-size-grid" role="radiogroup">
                 {(["S", "M", "L"] as const).map((s) => {
                   const sizeStock = product.stockBySize?.[s] ?? product.stock;
-                  const isSizeDisabled = sizeStock <= 0;
+                  const isPriceInvalid = sizePrice(product.price, s) === null;
+                  const isSizeDisabled = sizeStock <= 0 || isPriceInvalid;
                   const isSelected = size === s;
 
                   return (
@@ -256,7 +273,7 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
                       </div>
                       <span className="bl-size-label">{sizeNames[s]}</span>
                       <small className="bl-size-stock-hint">
-                        {isSizeDisabled ? "Hết hàng" : `Còn ${sizeStock} ly`}
+                        {isPriceInvalid ? "Giá chưa hợp lệ" : isSizeDisabled ? "Hết hàng" : `Còn ${sizeStock} ly`}
                       </small>
                     </label>
                   );
@@ -362,7 +379,7 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
                   <button
                     type="button"
                     className="bl-stepper-btn"
-                    disabled={quantity <= 1 || isSoldOut}
+                    disabled={!cart.ready || quantity <= 1 || isSoldOut}
                     onClick={() => handleQuantityChange(-1)}
                     aria-label="Giảm 1 ly"
                   >
@@ -374,7 +391,7 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
                   <button
                     type="button"
                     className="bl-stepper-btn"
-                    disabled={quantity >= Math.min(99, stock) || isSoldOut}
+                    disabled={!cart.ready || quantity >= maxAdd || isSoldOut}
                     onClick={() => handleQuantityChange(1)}
                     aria-label="Tăng 1 ly"
                   >
@@ -400,7 +417,7 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
                 <button
                   className="bl-button bl-button-primary bl-btn-add-main"
                   type="button"
-                  disabled={!cart.ready || isSoldOut}
+                  disabled={!cart.ready || isSoldOut || quantity > maxAdd}
                   onClick={handleAddToCart}
                 >
                   <ShoppingBagIcon size={20} />
@@ -425,7 +442,7 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
           <button
             type="button"
             className="bl-button bl-button-primary bl-mobile-btn-add"
-            disabled={!cart.ready || isSoldOut}
+            disabled={!cart.ready || isSoldOut || quantity > maxAdd}
             onClick={handleAddToCart}
           >
             <ShoppingBagIcon size={18} />

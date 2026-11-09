@@ -11,6 +11,7 @@ import { PrismaClient } from '../generated/prisma/client.js';
 import type { OrderPreferences } from './order-preferences.js';
 import type {
   AdminOrderPage,
+  AdminOrderFilters,
   AdminOrderRecord,
   IngredientSnapshot,
   OrderDetailRecord,
@@ -63,6 +64,9 @@ interface OrderRow {
   recipientPhone?: string | null;
   userEmail?: string;
   paymentStatus?: string | null;
+  cancellationReason?: string | null;
+  cancelledAt?: Date | null;
+  cancelledById?: number | null;
 }
 
 interface OrderItemRow extends OrderPreferences {
@@ -407,7 +411,7 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
     const orders = await this.prisma.$queryRaw<OrderRow[]>`
       SELECT
         o."id", o."status", o."total", o."createdAt", o."expiresAt",
-        o."recipientName", o."recipientPhone",
+        o."recipientName", o."recipientPhone", o."cancellationReason", o."cancelledAt", o."cancelledById",
         u."email" AS "userEmail",
         (SELECT p."status" FROM "Payment" p WHERE p."orderId" = o."id" ORDER BY p."createdAt" DESC, p."id" DESC LIMIT 1) AS "paymentStatus"
       FROM "Order" o
@@ -427,6 +431,9 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       recipientPhone: order.recipientPhone ?? null,
       userEmail: order.userEmail ?? '',
       paymentStatus: order.paymentStatus ?? null,
+      cancellationReason: order.cancellationReason ?? null,
+      cancelledAt: order.cancelledAt ?? null,
+      cancelledById: order.cancelledById ?? null,
       items: await this.getOrderItems(orderId),
     };
   }
@@ -434,19 +441,25 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
   async listAdminOrders(
     page: number,
     limit: number,
-    filters: { dateFrom: Date | null; dateToExclusive: Date | null; status: string | null },
+    filters: AdminOrderFilters,
   ): Promise<AdminOrderPage> {
     const offset = (page - 1) * limit;
     const { dateFrom, dateToExclusive, status } = filters;
-    const [countRows, orders] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ total: bigint | number }>>`
+    const search = filters.search ?? null;
+    const paymentStatus = filters.paymentStatus ?? null;
+    const [countRows, orders] = await this.prisma.$transaction(
+      [
+        this.prisma.$queryRaw<Array<{ total: bigint | number }>>`
         SELECT COUNT(*) AS "total"
         FROM "Order" o
+        JOIN "User" u ON u."id" = o."userId"
         WHERE (${dateFrom}::timestamptz IS NULL OR o."createdAt" >= ${dateFrom})
           AND (${dateToExclusive}::timestamptz IS NULL OR o."createdAt" < ${dateToExclusive})
           AND (${status}::text IS NULL OR o."status" = ${status})
+          AND (${search}::text IS NULL OR POSITION(LOWER(${search}) IN LOWER(CONCAT(o."id"::text, ' ', u."email", ' ', u."name", ' ', u."phone", ' ', o."recipientName", ' ', o."recipientPhone"))) > 0)
+          AND (${paymentStatus}::text IS NULL OR COALESCE((SELECT p."status" FROM "Payment" p WHERE p."orderId" = o."id" ORDER BY p."createdAt" DESC, p."id" DESC LIMIT 1), 'NONE') = ${paymentStatus})
       `,
-      this.prisma.$queryRaw<Array<OrderRow & { items: OrderItemRow[] }>>`
+        this.prisma.$queryRaw<Array<OrderRow & { items: OrderItemRow[] }>>`
         SELECT
           o."id", o."status", o."total", o."createdAt", o."expiresAt",
           o."recipientName", o."recipientPhone",
@@ -475,10 +488,14 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
         WHERE (${dateFrom}::timestamptz IS NULL OR o."createdAt" >= ${dateFrom})
           AND (${dateToExclusive}::timestamptz IS NULL OR o."createdAt" < ${dateToExclusive})
           AND (${status}::text IS NULL OR o."status" = ${status})
+          AND (${search}::text IS NULL OR POSITION(LOWER(${search}) IN LOWER(CONCAT(o."id"::text, ' ', u."email", ' ', u."name", ' ', u."phone", ' ', o."recipientName", ' ', o."recipientPhone"))) > 0)
+          AND (${paymentStatus}::text IS NULL OR COALESCE((SELECT p."status" FROM "Payment" p WHERE p."orderId" = o."id" ORDER BY p."createdAt" DESC, p."id" DESC LIMIT 1), 'NONE') = ${paymentStatus})
         ORDER BY o."createdAt" DESC, o."id" DESC
         LIMIT ${limit} OFFSET ${offset}
       `,
-    ]);
+      ],
+      { isolationLevel: 'RepeatableRead' },
+    );
 
     const total = Number(countRows[0]?.total ?? 0);
     const data = orders.map((order) => ({

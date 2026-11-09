@@ -152,7 +152,6 @@ export default function MenuList({
     });
   }, [allProducts, debouncedQuery, activeCategory, timeOfDay?.key]);
 
-
   return (
     <section className="bl-menu-section" id="menu" aria-labelledby="menu-heading">
       {/* Search and Category Navigation */}
@@ -264,7 +263,6 @@ export default function MenuList({
           </button>
         </div>
       </div>
-
 
       {/* Main Product Grid or States */}
       <div className="bl-menu-grid-wrap" aria-live="polite">

@@ -250,6 +250,8 @@ describe('A1-06 OrdersService', () => {
       dateFrom: new Date('2026-11-05T17:00:00.000Z'),
       dateToExclusive: new Date('2026-11-06T17:00:00.000Z'),
       status: 'PENDING',
+      search: null,
+      paymentStatus: null,
     });
     await expect(service.listAdminOrders('1', '10', '2026-11-07', '2026-11-06'))
       .rejects.toThrow(/dateFrom/);

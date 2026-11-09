@@ -58,7 +58,10 @@ function parseOrderInput(body: unknown): ParsedOrderInput {
   if (
     !isObject(body) ||
     Object.keys(body).some(
-      (key) => !['items', 'promoCode', 'recipientName', 'recipientPhone'].includes(key),
+      (key) =>
+        !['items', 'promoCode', 'recipientName', 'recipientPhone'].includes(
+          key,
+        ),
     )
   ) {
     throw new BadRequestException(
@@ -96,10 +99,16 @@ function parseOrderInput(body: unknown): ParsedOrderInput {
     if (
       !isObject(item) ||
       Object.keys(item).some(
-        (key) => ![
-          'productId', 'quantity', 'size', 'toppings',
-          'sugarLevel', 'iceLevel', 'note',
-        ].includes(key),
+        (key) =>
+          ![
+            'productId',
+            'quantity',
+            'size',
+            'toppings',
+            'sugarLevel',
+            'iceLevel',
+            'note',
+          ].includes(key),
       )
     ) {
       throw new BadRequestException('Order item không hợp lệ');
@@ -306,7 +315,10 @@ export class OrdersService {
       size: item.size,
       toppings: item.toppings,
     }));
-    const ingredientNeeds = calculateIngredientNeeds(needInputs, toppingIngredients);
+    const ingredientNeeds = calculateIngredientNeeds(
+      needInputs,
+      toppingIngredients,
+    );
 
     const ingredientById = new Map<number, IngredientSnapshot>();
     for (const recipe of recipeById.values()) {
@@ -427,6 +439,8 @@ export class OrdersService {
     rawDateFrom?: unknown,
     rawDateTo?: unknown,
     rawStatus?: unknown,
+    rawSearch?: unknown,
+    rawPaymentStatus?: unknown,
   ) {
     const page = rawPage === undefined ? 1 : Number(rawPage);
     const limit = rawLimit === undefined ? 20 : Number(rawLimit);
@@ -475,7 +489,31 @@ export class OrdersService {
       status = rawStatus;
     }
 
+    if (
+      rawSearch !== undefined &&
+      (typeof rawSearch !== 'string' || rawSearch.length > 200)
+    )
+      throw new BadRequestException('Từ khóa tối đa 200 ký tự.');
+    const search =
+      typeof rawSearch === 'string' ? rawSearch.trim() || null : null;
+    const paymentStatus =
+      rawPaymentStatus === undefined ? null : rawPaymentStatus;
+    if (
+      paymentStatus !== null &&
+      (typeof paymentStatus !== 'string' ||
+        ![
+          'NONE',
+          'PENDING',
+          'SUCCESS',
+          'FAILED',
+          'CANCELLED',
+          'RECONCILIATION_REQUIRED',
+        ].includes(paymentStatus))
+    )
+      throw new BadRequestException('Trạng thái thanh toán không được hỗ trợ.');
     return this.store.listAdminOrders(page, limit, {
+      search,
+      paymentStatus,
       dateFrom,
       dateToExclusive,
       status,

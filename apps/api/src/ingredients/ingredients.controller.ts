@@ -1,6 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
+  Headers,
+  Query,
+  Req,
   Get,
   Param,
   ParseIntPipe,
@@ -15,6 +19,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CreateIngredientDto } from './dto/create-ingredient.dto.js';
 import { UpdateIngredientDto } from './dto/update-ingredient.dto.js';
 import { RestockIngredientDto } from './dto/restock-ingredient.dto.js';
+import { AdjustIngredientDto } from './dto/adjust-ingredient.dto.js';
+import { InventoryHistoryQueryDto } from './dto/inventory-history-query.dto.js';
 import { IngredientsService } from './ingredients.service.js';
 
 @Controller('ingredients')
@@ -51,7 +57,37 @@ export class IngredientsController {
   restock(
     @Param('id', ParseIntPipe) id: number,
     @Body() input: RestockIngredientDto,
+    @Req() req: { user: { id: number } },
+    @Headers('idempotency-key') key?: string,
   ) {
-    return this.ingredients.restock(id, input.quantity);
+    return this.ingredients.restock(
+      id,
+      input.quantity,
+      req.user.id,
+      input.reason,
+      key,
+    );
+  }
+  @Post(':id/adjust')
+  adjust(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() input: AdjustIngredientDto,
+    @Req() req: { user: { id: number } },
+    @Headers('idempotency-key') key?: string,
+  ) {
+    return this.ingredients.adjust(id, input, req.user.id, key);
+  }
+
+  @Get(':id/movements')
+  movements(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: InventoryHistoryQueryDto,
+  ) {
+    return this.ingredients.movements(id, query.page ?? 1);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.ingredients.remove(id);
   }
 }
