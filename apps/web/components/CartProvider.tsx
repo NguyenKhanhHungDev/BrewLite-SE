@@ -33,6 +33,7 @@ type CartApi = {
     quantity: number,
     preferences?: Preferences,
   ) => void;
+  restoreLine: (line: CartLine) => void;
   changeQuantity: (key: string, quantity: number) => void;
   remove: (key: string) => void;
   clear: () => void;
@@ -108,6 +109,21 @@ export default function CartProvider({ children }: { children: ReactNode }) {
     },
     [commit],
   );
+  const restoreLine = useCallback(
+    (line: CartLine) => {
+      // Undo can run after another action refreshed this product. Use the
+      // current snapshot rather than overwriting its price/stock with the removed line.
+      const product = current.current.lines.find(
+        (item) => item.product.id === line.product.id,
+      )?.product ?? line.product;
+      add(product, line.size, line.toppings, line.quantity, {
+        sugarLevel: line.sugarLevel,
+        iceLevel: line.iceLevel,
+        note: line.note,
+      });
+    },
+    [add],
+  );
   const changeQuantity = useCallback(
     (key: string, quantity: number) => {
       commit(changeCartQuantity(current.current.lines, key, quantity));
@@ -145,6 +161,7 @@ export default function CartProvider({ children }: { children: ReactNode }) {
       value={{
         ...state,
         add,
+        restoreLine,
         changeQuantity,
         remove,
         clear,

@@ -4,6 +4,8 @@ import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ApiError, isObject, requestJson } from "@/lib/api";
+import { parseSession, passwordFitsBcrypt } from "@/lib/session";
+import { loginDestination } from "@/lib/login-destination";
 import { useAuth } from "./AuthProvider";
 import {
   CoffeeIcon,
@@ -22,23 +24,7 @@ export default function AuthForm() {
   const router = useRouter();
   const auth = useAuth();
   const params = useSearchParams();
-  const requested = params.get("next") ?? "/";
-  const next =
-    [
-      "/account",
-      "/checkout",
-      "/history",
-      "/cart",
-      "/admin",
-      "/admin/ingredients",
-      "/admin/recipes",
-      "/admin/orders",
-      "/admin/payments",
-    ].includes(requested) ||
-    /^\/confirmation\/\d+$/.test(requested) ||
-    /^\/payment\/result\?orderId=[1-9]\d*$/.test(requested)
-      ? requested
-      : "/";
+  const requested = params.get("next");
 
   // Pre-fill registered email hint if redirecting from registration
   const [register, setRegister] = useState(false);
@@ -51,7 +37,11 @@ export default function AuthForm() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || auth.loading || auth.logoutPending) return;
+    if (register && (Array.from(password).length < 8 || !passwordFitsBcrypt(password))) {
+      setError("Mật khẩu mới cần ít nhất 8 ký tự và không vượt quá 72 byte UTF-8.");
+      return;
+    }
     if (register && password !== confirmation) {
       setError("Mật khẩu xác nhận không khớp.");
       return;
@@ -64,20 +54,21 @@ export default function AuthForm() {
       const body = JSON.stringify({ email: cleanEmail, password });
       const init = {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-brewlite-csrf": "1" },
         body,
       };
 
       if (register) {
-        await requestJson("/auth/register", init);
+        await requestJson("/api/session/register", init);
       }
 
-      const result = await requestJson("/auth/login", init);
-      if (!isObject(result) || typeof result.accessToken !== "string") {
-        throw new Error("Dữ liệu đăng nhập không hợp lệ.");
-      }
-
-      auth.login(result.accessToken);
+      const result = await requestJson("/api/session/login", init);
+      const session = parseSession(result);
+      const profile = await requestJson("/api/session/proxy/auth/me");
+      if (!isObject(profile) || profile.id !== session.userId)
+        throw new Error("Không xác nhận được tài khoản đăng nhập. Vui lòng thử lại.");
+      const next = loginDestination(profile.role, requested);
+      auth.login(result);
       setPassword("");
       router.replace(next);
     } catch (cause) {
@@ -128,7 +119,7 @@ export default function AuthForm() {
                 </div>
                 <div>
                   <strong>Tích điểm mỗi ly</strong>
-                  <p>Nhận 10 điểm cho mỗi 1.000 VND chi tiêu đổi quà hấp dẫn</p>
+                  <p>Nhận 1 điểm cho mỗi 10.000 VND của đơn đã thanh toán</p>
                 </div>
               </div>
 
@@ -148,7 +139,7 @@ export default function AuthForm() {
                 </div>
                 <div>
                   <strong>Ưu đãi thành viên</strong>
-                  <p>Nhận mã giảm giá và món tặng độc quyền vào dịp sinh nhật</p>
+                  <p>Xem số điểm đã tích lũy trong tài khoản</p>
                 </div>
               </div>
             </div>
@@ -156,14 +147,14 @@ export default function AuthForm() {
         </div>
 
         {/* Right Form Column */}
-        <div className="bl-auth-form-panel">
-          <div className="bl-auth-panel-top">
+        <div className="bl-auth-form-card">
+          <div className="bl-auth-card-header">
             <Link href="/" className="bl-auth-back-link">
               ← Trở về trang chủ
             </Link>
 
             {/* Tab switch between Login and Register */}
-            <div className="bl-auth-tabs" role="tablist">
+            <div className="bl-auth-mode-switch" role="tablist">
               <button
                 type="button"
                 role="tab"
@@ -200,7 +191,7 @@ export default function AuthForm() {
             </div>
           )}
 
-          {auth.session ? (
+          {auth.loading || auth.logoutPending ? <p role="status">{auth.logoutPending ? "Vui lòng hoàn tất đăng xuất trước khi đăng nhập lại." : "Đang khôi phục phiên đăng nhập…"}</p> : auth.session ? (
             <div className="bl-auth-logged-box">
               <div className="bl-auth-logged-icon" aria-hidden="true">
                 <CheckCircleIcon size={32} />
@@ -208,8 +199,8 @@ export default function AuthForm() {
               <h2>Bạn đã đăng nhập thành công!</h2>
               <p>Tài khoản của bạn đã sẵn sàng để đặt món và tích điểm.</p>
               <div className="bl-auth-logged-actions">
-                <Link href={next} className="bl-button bl-button-primary bl-full">
-                  <span>Tiếp tục đặt món</span>
+                <Link href="/account" className="bl-button bl-button-primary bl-full">
+                  <span>Xem tài khoản</span>
                   <ArrowRightIcon size={16} />
                 </Link>
                 <button
@@ -217,7 +208,7 @@ export default function AuthForm() {
                   onClick={() => auth.logout()}
                   className="bl-button bl-button-ghost bl-full"
                 >
-                  Đăng xuất tài khoản
+                  Đăng xuất trên mọi thiết bị
                 </button>
               </div>
             </div>
@@ -267,7 +258,7 @@ export default function AuthForm() {
                     Mật khẩu
                   </label>
                   {register && (
-                    <span className="bl-auth-label-hint">Tối thiểu 8 ký tự</span>
+                    <span className="bl-auth-label-hint">8 ký tự trở lên, tối đa 72 byte UTF-8</span>
                   )}
                 </div>
                 <div className="bl-auth-input-wrap">

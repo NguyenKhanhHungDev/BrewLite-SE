@@ -1,10 +1,10 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
-import {
-  PaymentDetailsService,
-  safePaymentSelect,
-} from './payment-details.service.js';
+import { PaymentDetailsService } from './payment-details.service.js';
+import { PaymentAdminService } from './payment-admin.service.js';
+import { safePaymentSelect } from './payment-select.js';
+import { PaymentOperationsController } from './payment-operations.controller.js';
 import { PaymentDetailsController } from './payment-details.controller.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { AdminGuard } from '../auth/admin.guard.js';
@@ -47,10 +47,12 @@ describe('Payment details', () => {
     const transaction = vi.fn(async (queries: Promise<unknown>[]) =>
       Promise.all(queries),
     );
-    const result = await service({
-      payment: { count, findMany },
-      $transaction: transaction,
-    }).reconciliation(2);
+    const result = await Object.assign(
+      Object.create(PaymentAdminService.prototype),
+      {
+        db: { payment: { count, findMany }, $transaction: transaction },
+      },
+    ).reconciliation(2);
     expect(result.total).toBe(21);
     expect(findMany.mock.calls[0][0]).toMatchObject({
       where: { status: 'RECONCILIATION_REQUIRED' },
@@ -63,21 +65,19 @@ describe('Payment details', () => {
       Reflect.getMetadata('__guards__', PaymentDetailsController),
     ).toContain(JwtAuthGuard);
     expect(
-      Reflect.getMetadata(
-        '__guards__',
-        Object.getOwnPropertyDescriptor(
-          PaymentDetailsController.prototype,
-          'reconciliation',
-        )!.value,
-      ),
+      Reflect.getMetadata('__guards__', PaymentOperationsController),
     ).toContain(AdminGuard);
   });
   it('rejects invalid pages and order IDs', () => {
     const controller = new PaymentDetailsController(
       {} as PaymentDetailsService,
     );
+    const adminController = new PaymentOperationsController(
+      {} as PaymentAdminService,
+      {} as import('./payments.service.js').PaymentsService,
+    );
     for (const page of ['0', '-1', '1.5', 'x', '1000001'])
-      expect(() => controller.reconciliation(page)).toThrow(
+      expect(() => adminController.reconciliation(page)).toThrow(
         BadRequestException,
       );
     expect(() => controller.forOrder({ user: { id: 1 } }, -1)).toThrow(

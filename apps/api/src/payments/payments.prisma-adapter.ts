@@ -144,6 +144,7 @@ export class PaymentsPrismaAdapter
             orderId: order.id,
             provider: 'ZALOPAY',
             status: 'PENDING',
+            creationStatus: { not: 'REJECTED' },
           },
           orderBy: { createdAt: 'desc' },
         });

@@ -9,7 +9,7 @@ import { parseOrderId } from "@/lib/payments";
 
 function ResultPage() {
   const params = useSearchParams();
-  const { session } = useAuth();
+  const { session, loading } = useAuth();
   const orderId =
     params.getAll("orderId").length === 1
       ? parseOrderId(params.get("orderId"))
@@ -30,7 +30,7 @@ function ResultPage() {
             Xem lịch sử đơn hàng
           </Link>
         </section>
-      ) : !session ? (
+      ) : loading ? <p role="status">Đang khôi phục phiên đăng nhập…</p> : !session ? (
         <section className="bl-panel">
           <h2>Đăng nhập để xem kết quả</h2>
           <Link

@@ -74,21 +74,26 @@ export interface OrderDetailRecord {
   expiresAt: Date | null;
   recipientName: string | null;
   recipientPhone: string | null;
-  items: Array<OrderPreferences & {
-    recipeId: number | null;
-    recipeName: string;
-    productId: number | null;
-    quantity: number;
-    size: string;
-    toppings: string[];
-    unitPrice: number;
-    subtotal: number;
-  }>;
+  items: Array<
+    OrderPreferences & {
+      recipeId: number | null;
+      recipeName: string;
+      productId: number | null;
+      quantity: number;
+      size: string;
+      toppings: string[];
+      unitPrice: number;
+      subtotal: number;
+    }
+  >;
 }
 
 export interface AdminOrderRecord extends OrderDetailRecord {
   userEmail: string;
   paymentStatus: string | null;
+  cancellationReason?: string | null;
+  cancelledAt?: Date | null;
+  cancelledById?: number | null;
 }
 
 export interface AdminOrderPage {
@@ -100,6 +105,8 @@ export interface AdminOrderPage {
 }
 
 export interface AdminOrderFilters {
+  search?: string | null;
+  paymentStatus?: string | null;
   dateFrom: Date | null;
   dateToExclusive: Date | null;
   status: string | null;

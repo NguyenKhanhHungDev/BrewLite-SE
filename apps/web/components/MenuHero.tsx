@@ -14,6 +14,7 @@ import {
   SteamWaveIcon,
   FireIcon,
 } from "./Icons";
+import { sizePrice } from "@/lib/pricing";
 import { useCart } from "./CartProvider";
 import { useToast } from "./Toast";
 
@@ -24,7 +25,7 @@ export default function MenuHero({
   products?: Product[];
   product?: Product;
 }) {
-  const { add } = useCart();
+  const { add, ready, lines } = useCart();
   const toast = useToast();
 
   // Combine either product array or single product
@@ -61,9 +62,18 @@ export default function MenuHero({
   function handleQuickAdd(e: React.MouseEvent, p: Product) {
     e.preventDefault();
     e.stopPropagation();
-    add(p, "M", [], 1);
-    toast.success(`Đã thêm 1 ly ${p.name} vào giỏ hàng!`);
+    try {
+      if (!ready) throw new Error("Đang khôi phục giỏ hàng, vui lòng chờ.");
+      add(p, "M", [], 1);
+      toast.success(`Đã thêm 1 ly ${p.name} vào giỏ hàng!`);
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Không thể thêm vào giỏ hàng.");
+    }
   }
+
+  const usedStock = activeProduct ? lines.filter((line) => line.product.id === activeProduct.id && line.size === "M").reduce((sum, line) => sum + line.quantity, 0) : 0;
+  const quickLine = activeProduct ? lines.find((line) => line.key === `${activeProduct.id}:M:`) : undefined;
+  const quickDisabled = !ready || !activeProduct || sizePrice(activeProduct.price, "M") === null || usedStock >= (activeProduct.stockBySize?.M ?? activeProduct.stock) || (quickLine?.quantity ?? 0) >= 99;
 
   return (
     <section className="bl-hero-section" aria-labelledby="hero-heading">
@@ -91,7 +101,7 @@ export default function MenuHero({
               <span>Khám phá thực đơn</span>
               <ArrowRightIcon size={18} />
             </a>
-            <a className="bl-button bl-button-ghost" href="#highlights">
+            <a className="bl-button bl-button-ghost" href="#menu">
               <span>Gợi ý theo buổi</span>
             </a>
           </div>
@@ -166,6 +176,7 @@ export default function MenuHero({
                     <button
                       type="button"
                       className="bl-carousel-quick-btn"
+                      disabled={quickDisabled}
                       onClick={(e) => handleQuickAdd(e, activeProduct)}
                       title={`Thêm ${activeProduct.name} vào giỏ hàng`}
                     >

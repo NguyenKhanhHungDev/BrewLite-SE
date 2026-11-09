@@ -364,10 +364,13 @@ a {
 }
 .bl-header-inner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 8px 16px;
   width: min(1240px, calc(100% - 48px));
-  height: 74px;
+  min-height: 74px;
+  padding: 12px 0;
   margin: auto;
 }
 .bl-brand {
@@ -411,12 +414,19 @@ a {
 }
 .bl-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
+  max-width: 100%;
   gap: 8px;
 }
 .bl-header-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  max-width: 100%;
   gap: 10px;
 }
 .bl-menu-link {
@@ -1053,8 +1063,8 @@ a {
   box-shadow: var(--bl-shadow-md);
   border-color: var(--bl-border);
 }
-.bl-product-soldout {
-  opacity: 0.65;
+.bl-product-soldout .bl-product-image-wrap img {
+  filter: saturate(0.55);
 }
 .bl-product-image-wrap {
   position: relative;
@@ -1103,21 +1113,24 @@ a {
 .bl-soldout-overlay {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(30, 20, 16, 0.45);
-  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-end;
+  padding: 16px;
+  background: linear-gradient(transparent 65%, rgba(30, 20, 16, 0.2));
 }
 .bl-soldout-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: var(--bl-radius-pill);
-  background: var(--bl-espresso);
-  color: #fff;
-  font-size: 0.84rem;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fffaf5;
+  border: 1px solid #d6bca5;
+  color: #663d27;
+  box-shadow: 0 2px 8px #2415091a;
+  font-size: 0.88rem;
   font-weight: 700;
+  line-height: 1.4;
 }
 .bl-product-info {
   display: flex;
@@ -2608,7 +2621,7 @@ a {
   position: relative;
   width: min(1040px, 100%);
   display: grid;
-  grid-template-columns: 1.05fr 1fr;
+  grid-template-columns: 1fr 1fr;
   background: var(--bl-bg-card);
   border: 1px solid var(--bl-border);
   border-radius: 32px;
@@ -2644,7 +2657,7 @@ a {
 .bl-auth-banner-title {
   margin: 0 0 16px;
   font-family: var(--bl-display);
-  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  font-size: clamp(1.8rem, 2.6vw, 2.25rem);
   font-weight: 700;
   color: var(--bl-espresso);
   line-height: 1.2;
@@ -2701,6 +2714,8 @@ a {
 }
 .bl-auth-card-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 28px;
@@ -2974,7 +2989,14 @@ a {
 @media (max-width: 680px) {
   .bl-header-inner {
     width: calc(100% - 32px);
-    height: 66px;
+    min-height: 66px;
+    padding: 10px 0;
+  }
+  .bl-nav {
+    flex-basis: 100%;
+  }
+  .bl-header-actions {
+    flex: 1;
   }
   .bl-brand-tagline {
     display: none;

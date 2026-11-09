@@ -16,7 +16,7 @@ export default function CartDrawer({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const { lines, ready, changeQuantity, remove, add } = useCart();
+  const { lines, ready, changeQuantity, remove, restoreLine } = useCart();
   const toast = useToast();
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -48,11 +48,33 @@ export default function CartDrawer({
   const total = ready && lines.length ? cartTotal(lines) : 0;
   const count = lines.reduce((sum, item) => sum + item.quantity, 0);
 
+  function reportError(cause: unknown) {
+    toast.error(cause instanceof Error ? cause.message : "Không thể cập nhật giỏ hàng.");
+  }
+
+  function handleQuantity(key: string, quantity: number) {
+    try {
+      if (!ready) throw new Error("Đang khôi phục giỏ hàng, vui lòng chờ.");
+      changeQuantity(key, quantity);
+    } catch (cause) {
+      reportError(cause);
+    }
+  }
+
   function handleRemove(line: (typeof lines)[0]) {
-    remove(line.key);
-    toast.undo(`Đã xóa ${line.product.name} (${line.size}) khỏi giỏ.`, () => {
-      add(line.product, line.size, line.toppings, line.quantity);
-    });
+    try {
+      if (!ready) throw new Error("Đang khôi phục giỏ hàng, vui lòng chờ.");
+      remove(line.key);
+      toast.undo(`Đã xóa ${line.product.name} (${line.size}) khỏi giỏ.`, () => {
+        try {
+          restoreLine(line);
+        } catch (cause) {
+          reportError(cause);
+        }
+      });
+    } catch (cause) {
+      reportError(cause);
+    }
   }
 
   return (
@@ -104,6 +126,8 @@ export default function CartDrawer({
           ) : (
             <div className="bl-drawer-lines">
               {lines.map((line) => {
+                const stock = line.product.stockBySize?.[line.size] ?? line.product.stock;
+                const usedStock = lines.filter((item) => item.product.id === line.product.id && item.size === line.size).reduce((sum, item) => sum + item.quantity, 0);
                 const itemPrice = unitPrice(line.product.price, line.size, line.toppings);
                 const lineTotal = itemPrice * line.quantity;
                 return (
@@ -117,6 +141,7 @@ export default function CartDrawer({
                         <button
                           type="button"
                           className="bl-drawer-remove"
+                          disabled={!ready}
                           onClick={() => handleRemove(line)}
                           aria-label={`Xóa ${line.product.name} ${line.size}`}
                         >
@@ -131,8 +156,8 @@ export default function CartDrawer({
                           <button
                             type="button"
                             className="bl-stepper-btn"
-                            disabled={line.quantity <= 1}
-                            onClick={() => changeQuantity(line.key, line.quantity - 1)}
+                            disabled={!ready || line.quantity <= 1}
+                            onClick={() => handleQuantity(line.key, line.quantity - 1)}
                             aria-label={`Giảm số ly ${line.product.name}`}
                           >
                             <MinusIcon size={16} />
@@ -143,7 +168,8 @@ export default function CartDrawer({
                           <button
                             type="button"
                             className="bl-stepper-btn"
-                            onClick={() => changeQuantity(line.key, line.quantity + 1)}
+                            disabled={!ready || line.quantity >= 99 || usedStock >= stock}
+                            onClick={() => handleQuantity(line.key, line.quantity + 1)}
                             aria-label={`Tăng số ly ${line.product.name}`}
                           >
                             <PlusIcon size={16} />

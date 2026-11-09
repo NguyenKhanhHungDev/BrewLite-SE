@@ -12,3 +12,7 @@ apps/api/src/generated/
 
 # TypeScript build information
 *.tsbuildinfo
+
+# Local browser verification traces and screenshots.
+.playwright-cli/
+output/playwright/
