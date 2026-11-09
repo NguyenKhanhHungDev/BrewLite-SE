@@ -672,3 +672,47 @@ export function ChevronRightIcon({ size = 20, className = "", strokeWidth = 1.8 
     </svg>
   );
 }
+
+export function TicketIcon({ size = 20, className = "", strokeWidth = 1.8 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
+      <path d="M13 5v2" />
+      <path d="M13 11v2" />
+      <path d="M13 17v2" />
+    </svg>
+  );
+}
+
+export function ReceiptIcon({ size = 20, className = "", strokeWidth = 1.8 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+      <path d="M8 7h8" />
+      <path d="M8 11h8" />
+      <path d="M8 15h5" />
+    </svg>
+  );
+}

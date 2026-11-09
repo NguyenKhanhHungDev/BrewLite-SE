@@ -152,17 +152,6 @@ export default function MenuList({
     });
   }, [allProducts, debouncedQuery, activeCategory, timeOfDay?.key]);
 
-  // Curated lists for highlights
-  const bestSellers = useMemo(() => {
-    return allProducts.filter((p) => {
-      const n = p.name.toLowerCase();
-      return (
-        n.includes("cà phê sữa") ||
-        n.includes("bạc xỉu") ||
-        n.includes("trà đào")
-      );
-    });
-  }, [allProducts]);
 
   return (
     <section className="bl-menu-section" id="menu" aria-labelledby="menu-heading">
@@ -276,25 +265,6 @@ export default function MenuList({
         </div>
       </div>
 
-      {/* Highlights Section: When viewing "all" with no search, show curated shelf */}
-      {state.status === "success" && activeCategory === "all" && !debouncedQuery && bestSellers.length > 0 && (
-        <section className="bl-highlight-shelf" id="highlights" aria-label="Món bán chạy nhất">
-          <div className="bl-shelf-header">
-            <div className="bl-shelf-title-group">
-              <span className="bl-shelf-badge">
-                <FireIcon size={15} /> Khuyên dùng
-              </span>
-              <h3>Được yêu thích nhất tại quầy</h3>
-            </div>
-            <p>Những công thức được khách hàng quay lại gọi nhiều lần nhất</p>
-          </div>
-          <div className="bl-highlight-grid">
-            {bestSellers.map((product) => (
-              <ProductCard product={product} key={`highlight-${product.id}`} />
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Main Product Grid or States */}
       <div className="bl-menu-grid-wrap" aria-live="polite">

@@ -19,11 +19,9 @@ export default function PaymentCountdown({
 
   if (!isPending || !hasDeadline) return null;
 
-  const isUrgent = !isExpired && totalSeconds < 180; // under 3 minutes
-
   return (
     <div
-      className={`bl-countdown-box ${isExpired ? "bl-countdown-expired" : isUrgent ? "bl-countdown-urgent" : ""}`}
+      className="bl-invoice-deadline-bar"
       role="timer"
       aria-live="polite"
       aria-label={
@@ -32,22 +30,29 @@ export default function PaymentCountdown({
           : `Hạn thanh toán còn ${formattedTime}`
       }
     >
-      <div className="bl-countdown-icon-wrap" aria-hidden="true">
-        {isExpired ? <ExclamationIcon size={18} /> : <ClockIcon size={18} />}
+      <div className="bl-deadline-info-wrap">
+        <div className="bl-deadline-icon-box" aria-hidden="true">
+          {isExpired ? <ExclamationIcon size={20} /> : <ClockIcon size={20} />}
+        </div>
+        <div>
+          <span className="bl-deadline-label">
+            {isExpired ? "Đơn hàng đã hết hạn thanh toán" : "Hạn thanh toán hóa đơn"}
+          </span>
+          <p className="bl-deadline-sublabel">
+            {isExpired
+              ? "Thời gian giữ nguyên liệu cho đơn đã kết thúc"
+              : totalSeconds < 180
+                ? "Sắp hết hạn! Vui lòng thanh toán sớm"
+                : "Được giữ trong 15 phút tại quầy"}
+          </p>
+        </div>
       </div>
-      <div className="bl-countdown-content">
-        <span className="bl-countdown-label">
-          {isExpired ? "Đơn hàng đã hết hạn thanh toán" : "Thời gian giữ đơn tại quầy:"}
-        </span>
-        <strong className="bl-countdown-digits">
-          {isExpired ? "00:00" : formattedTime}
-        </strong>
+      <div
+        className="bl-neon-timer"
+        aria-label={`Thời gian còn lại ${formattedTime}`}
+      >
+        {isExpired ? "00:00" : formattedTime}
       </div>
-      {!isExpired && (
-        <span className="bl-countdown-hint">
-          {isUrgent ? "Sắp hết hạn! Vui lòng thanh toán sớm." : "Được giữ trong 15 phút"}
-        </span>
-      )}
     </div>
   );
 }

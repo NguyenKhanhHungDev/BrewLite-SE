@@ -215,14 +215,6 @@ export default function CheckoutPage() {
             </section>
           ) : (
             <div className="bl-flow-grid">
-              {purchase && (
-                <PaymentDetails
-                  key={purchase.orderId}
-                  orderId={purchase.orderId}
-                  onStatus={checkout.syncPayment}
-                />
-              )}
-
               {/* Left Column: Checkout Action Form */}
               <section className="bl-panel bl-checkout-panel" aria-busy={busy}>
                 {!auth.session ? (
@@ -254,25 +246,13 @@ export default function CheckoutPage() {
                         busy ||
                         Boolean(draft?.recipientName && draft?.recipientPhone)
                       }
-                      style={{
-                        margin: "1.25rem 0",
-                        padding: "1rem",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "var(--radius-md)",
-                      }}
                     >
-                      <legend
-                        style={{
-                          fontWeight: 600,
-                          padding: "0 0.5rem",
-                          color: "var(--brand-coffee)",
-                        }}
-                      >
+                      <legend>
                         Thông tin người nhận tại quầy
                       </legend>
-                      <label style={{ display: "block", marginBottom: "0.75rem" }}>
-                        <span style={{ display: "block", fontSize: "0.9rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                          Họ và tên
+                      <label className="bl-checkout-field">
+                        <span className="bl-checkout-label">
+                          Họ và tên người nhận
                         </span>
                         <input
                           type="text"
@@ -280,17 +260,17 @@ export default function CheckoutPage() {
                           onChange={(event) =>
                             editRecipient(event.target.value, recipientPhone)
                           }
+                          placeholder="Nguyễn Văn A"
                           minLength={2}
                           maxLength={100}
                           autoComplete="name"
                           required
                           className="bl-input"
-                          style={{ width: "100%" }}
                         />
                       </label>
-                      <label style={{ display: "block", marginBottom: "0.5rem" }}>
-                        <span style={{ display: "block", fontSize: "0.9rem", marginBottom: "0.25rem", fontWeight: 500 }}>
-                          Số điện thoại
+                      <label className="bl-checkout-field">
+                        <span className="bl-checkout-label">
+                          Số điện thoại liên hệ
                         </span>
                         <input
                           type="tel"
@@ -304,15 +284,10 @@ export default function CheckoutPage() {
                           placeholder="0901234567"
                           required
                           className="bl-input"
-                          style={{ width: "100%" }}
                         />
                       </label>
-                      <p
-                        className="bl-muted"
-                        style={{ fontSize: "0.85rem", margin: "0.5rem 0 0" }}
-                      >
-                        Thông tin này được lưu riêng theo đơn hàng để quán xác
-                        nhận người nhận.
+                      <p className="bl-recipient-note">
+                        Thông tin này được lưu riêng theo đơn hàng để barista xác nhận khi bạn nhận đồ uống tại quầy.
                       </p>
                     </fieldset>
 
@@ -355,6 +330,12 @@ export default function CheckoutPage() {
                         {statusNames[purchase.status]}
                       </span>
                     </div>
+
+                    <PaymentDetails
+                      key={purchase.orderId}
+                      orderId={purchase.orderId}
+                      onStatus={checkout.syncPayment}
+                    />
 
                     {!terminal ? (
                       <>
@@ -502,9 +483,7 @@ export default function CheckoutPage() {
               {/* Right Column: Order Summary & Promotion & Loyalty */}
               <div className="bl-checkout-summary">
                 {!purchase && (
-                  <section className="bl-panel" aria-label="Khuyến mãi">
-                    <PromotionField locked={Boolean(draft)} code={promoCode} />
-                  </section>
+                  <PromotionField locked={Boolean(draft)} code={promoCode} />
                 )}
 
                 <CartSummary

@@ -91,8 +91,8 @@ export default function MenuHero({
               <span>Khám phá thực đơn</span>
               <ArrowRightIcon size={18} />
             </a>
-            <a className="bl-button bl-button-ghost" href="#highlights">
-              <span>Gợi ý theo buổi</span>
+            <a className="bl-button bl-button-ghost" href="#menu">
+              <span>Đồ uống theo mùa</span>
             </a>
           </div>
 
