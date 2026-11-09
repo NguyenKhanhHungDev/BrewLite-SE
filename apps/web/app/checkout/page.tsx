@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useCart } from "@/components/CartProvider";
 import { useAuth } from "@/components/AuthProvider";
@@ -27,7 +27,8 @@ export default function CheckoutPage() {
   const checkout = useCheckout();
   const [error, setError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
-  const [zalopayUrl, setZalopayUrl] = useState<string | null>(null);
+  const [paymentLink, setPaymentLink] = useState<{ orderId: number; url: string } | null>(null);
+  const [expiredOrderId, setExpiredOrderId] = useState<number | null>(null);
   const [recipientInput, setRecipientInput] = useState<{
     owner: number | undefined;
     name: string;
@@ -71,7 +72,13 @@ export default function CheckoutPage() {
   );
 
   const busy = checkout.busy || redirecting;
-  const terminal = purchase && purchase.status !== "PENDING";
+  const deadlineReached = !!purchase && expiredOrderId === purchase.orderId;
+  const zalopayUrl = paymentLink?.orderId === purchase?.orderId ? paymentLink?.url : null;
+  const activeOrderId = purchase?.orderId;
+  const markDeadlineReached = useCallback(() => {
+    if (activeOrderId) setExpiredOrderId(activeOrderId);
+  }, [activeOrderId]);
+  const terminal = purchase && (purchase.status !== "PENDING" || deadlineReached);
   const paid = purchase && paidStatuses.includes(purchase.status);
 
   // Determine current active step (1 to 4)
@@ -99,7 +106,8 @@ export default function CheckoutPage() {
     setError("");
     try {
       const url = await checkout.startPayment();
-      setZalopayUrl(url);
+      const orderId = purchase?.orderId;
+      if (orderId) setPaymentLink({ orderId, url });
     } catch (cause) {
       setRedirecting(false);
       setError(
@@ -215,13 +223,7 @@ export default function CheckoutPage() {
             </section>
           ) : (
             <div className="bl-flow-grid">
-              {purchase && (
-                <PaymentDetails
-                  key={purchase.orderId}
-                  orderId={purchase.orderId}
-                  onStatus={checkout.syncPayment}
-                />
-              )}
+              <div className="bl-checkout-main">
 
               {/* Left Column: Checkout Action Form */}
               <section className="bl-panel bl-checkout-panel" aria-busy={busy}>
@@ -405,7 +407,7 @@ export default function CheckoutPage() {
                             <button
                               className="bl-button bl-button-secondary bl-full"
                               type="button"
-                              onClick={() => setZalopayUrl(null)}
+                              onClick={() => setPaymentLink(null)}
                             >
                               Đổi phương thức / Hủy quét mã
                             </button>
@@ -461,17 +463,21 @@ export default function CheckoutPage() {
                     ) : !paid ? (
                       <div className="bl-order-terminal-notice">
                         <p className="bl-muted">
-                          Đơn hàng đã hết hạn hoặc bị hủy. Bạn có thể kiểm tra
-                          lịch sử hoặc khởi tạo đơn mới.
+                          Đơn đã hết thời gian thanh toán hoặc không còn được thanh toán.
+                          Nếu đã quét mã hoặc chuyển tiền, hãy kiểm tra kết quả trước khi đặt lại.
+                          Giao dịch đang chờ vẫn tiếp tục được đối soát trong lịch sử đơn hàng.
                         </p>
                         {!!cart.lines.length && (
                           <button
                             className="bl-button bl-button-primary bl-full"
                             type="button"
                             disabled={busy}
-                            onClick={createOrder}
+                            onClick={() => {
+                              setPaymentLink(null);
+                              checkout.beginNewOrder();
+                            }}
                           >
-                            <span>Tạo đơn mới từ giỏ hàng</span>
+                            <span>Chuẩn bị đơn mới từ giỏ hàng</span>
                           </button>
                         )}
                         <Link
@@ -498,6 +504,16 @@ export default function CheckoutPage() {
                   </div>
                 )}
               </section>
+
+              {purchase && (
+                <PaymentDetails
+                  key={purchase.orderId}
+                  orderId={purchase.orderId}
+                  onStatus={checkout.syncPayment}
+                  onDeadlineReached={markDeadlineReached}
+                />
+              )}
+              </div>
 
               {/* Right Column: Order Summary & Promotion & Loyalty */}
               <div className="bl-checkout-summary">
