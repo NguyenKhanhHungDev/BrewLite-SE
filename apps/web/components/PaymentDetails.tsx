@@ -64,11 +64,13 @@ export default function PaymentDetails({
   orderId,
   revision = 0,
   onExpired,
+  onDeadlineReached,
   onStatus,
 }: {
   orderId: number;
   revision?: number;
   onExpired?: () => void;
+  onDeadlineReached?: () => void;
   onStatus?: (status: PaymentStatus) => void;
 }) {
   const { request } = useAuth();
@@ -164,6 +166,7 @@ export default function PaymentDetails({
       setNow(remaining);
       if (remaining === 0 && expiredDeadline.current !== data!.deadline) {
         expiredDeadline.current = data!.deadline;
+        onDeadlineReached?.();
         if (onExpired) onExpired();
         else setVerificationRevision((v) => v + 1);
       }
@@ -171,7 +174,7 @@ export default function PaymentDetails({
     tick();
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [data, onExpired, request, orderId]);
+  }, [data, onExpired, onDeadlineReached, request, orderId]);
   return (
     <section aria-label="Thông tin thanh toán">
       <h2>Chi tiết giao dịch</h2>

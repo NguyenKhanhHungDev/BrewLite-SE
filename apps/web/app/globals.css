@@ -1874,6 +1874,13 @@ a {
   gap: 36px;
   align-items: start;
 }
+.bl-checkout-main,
+.bl-checkout-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
 .bl-panel {
   padding: 28px;
   border: 1px solid var(--bl-border);

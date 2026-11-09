@@ -68,6 +68,7 @@ type CheckoutApi = State & {
     promoCode?: string,
   ) => Promise<OrderResult>;
   startPayment: () => Promise<string>;
+  beginNewOrder: () => void;
   syncPayment: (status: PaymentStatus) => void;
   syncOrder: (order: OrderRecord) => void;
 };
@@ -401,6 +402,13 @@ function CheckoutStore({ children }: { children: ReactNode }) {
     }
   }
 
+  function beginNewOrder() {
+    if (processing.current) return;
+    // Only reset this browser checkout; old gateway attempts remain available
+    // in order history and continue to reconcile on the backend.
+    commit({ ...empty, ready: true });
+  }
+
   async function startPayment(): Promise<string> {
     if (processing.current) throw new Error("Yêu cầu đang được xử lý.");
     const purchase = current.current.purchase;
@@ -465,6 +473,7 @@ function CheckoutStore({ children }: { children: ReactNode }) {
         removePromo,
         createOrder,
         startPayment,
+        beginNewOrder,
         syncPayment,
         syncOrder,
       }}
