@@ -3259,6 +3259,468 @@ a {
   color: var(--bl-ink);
 }
 
+/* ==========================================================================
+   CUSTOMER UI REFINEMENTS (Promo, Checkout, Summary, Neon Countdown)
+   ========================================================================== */
+.bl-checkout-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+@media (min-width: 960px) {
+  .bl-checkout-summary {
+    position: sticky;
+    top: 92px;
+  }
+}
+
+/* Promotion Code Field */
+.bl-promo-card {
+  padding: 20px;
+  border: 1px solid var(--bl-border);
+  border-radius: var(--bl-radius-md);
+  background: var(--bl-bg-card);
+  box-shadow: var(--bl-shadow-xs);
+}
+.bl-promo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.bl-promo-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bl-promo-icon {
+  color: var(--bl-caramel);
+}
+.bl-promo-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--bl-espresso);
+}
+.bl-promo-fieldset {
+  padding: 0;
+  margin: 0;
+  border: none;
+}
+.bl-promo-input-group {
+  display: flex;
+  align-items: stretch;
+  background: var(--bl-bg);
+  border: 1.5px solid var(--bl-border);
+  border-radius: var(--bl-radius-sm);
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.bl-promo-input-group:focus-within {
+  border-color: var(--bl-caramel);
+  box-shadow: 0 0 0 3px rgba(197, 125, 52, 0.15);
+}
+.bl-promo-input-icon-wrap {
+  padding: 0 0 0 12px;
+  color: var(--bl-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bl-promo-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 11px 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--bl-espresso);
+  letter-spacing: 0.04em;
+  font-size: 0.95rem;
+  outline: none;
+}
+.bl-promo-input::placeholder {
+  text-transform: none;
+  font-weight: 400;
+  color: var(--bl-muted-light);
+  letter-spacing: normal;
+}
+.bl-promo-apply-btn {
+  padding: 0 20px;
+  background: var(--bl-espresso);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+  flex: none;
+}
+.bl-promo-apply-btn:hover:not(:disabled) {
+  background: var(--bl-caramel);
+}
+.bl-promo-apply-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.bl-promo-applied-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--bl-radius-sm);
+  background: var(--bl-success-bg);
+  border: 1px solid var(--bl-success-border);
+}
+.bl-promo-badge-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bl-promo-success-icon {
+  color: var(--bl-success-text);
+  flex: none;
+}
+.bl-promo-code-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #ffffff;
+  border: 1px dashed var(--bl-success-text);
+  border-radius: 4px;
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: var(--bl-success-text);
+  letter-spacing: 0.04em;
+}
+.bl-promo-status-text {
+  margin: 3px 0 0;
+  font-size: 0.8rem;
+  color: var(--bl-success-text);
+}
+.bl-promo-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--bl-success-border);
+  border-radius: var(--bl-radius-sm);
+  color: var(--bl-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.bl-promo-remove-btn:hover {
+  background: #ffffff;
+  color: var(--bl-error-text);
+  border-color: var(--bl-error-border);
+}
+.bl-promo-error-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--bl-error-bg);
+  border: 1px solid var(--bl-error-border);
+  border-radius: var(--bl-radius-sm);
+  color: var(--bl-error-text);
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+/* Order Summary Table (Bảng tóm tắt đơn hàng) */
+.bl-summary-panel {
+  padding: 24px;
+  border: 1px solid var(--bl-border);
+  border-radius: var(--bl-radius-md);
+  background: var(--bl-bg-card);
+  box-shadow: var(--bl-shadow-xs);
+}
+.bl-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--bl-border-subtle);
+  margin-bottom: 16px;
+}
+.bl-summary-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bl-summary-icon {
+  color: var(--bl-caramel);
+}
+.bl-summary-heading {
+  font-family: var(--bl-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--bl-espresso);
+  margin: 0;
+}
+.bl-summary-count-badge {
+  padding: 3px 10px;
+  background: var(--bl-sand);
+  color: var(--bl-coffee);
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: var(--bl-radius-pill);
+}
+.bl-summary-items-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.bl-summary-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--bl-border-subtle);
+}
+.bl-summary-line:last-child {
+  border-bottom: none;
+}
+.bl-summary-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.bl-summary-item-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.bl-summary-qty-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--bl-sand);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--bl-espresso);
+  flex: none;
+}
+.bl-summary-item-name {
+  color: var(--bl-espresso);
+  font-size: 0.95rem;
+}
+.bl-summary-item-options {
+  display: block;
+  color: var(--bl-muted);
+  font-size: 0.82rem;
+  margin-top: 3px;
+}
+.bl-summary-item-price {
+  font-weight: 700;
+  color: var(--bl-espresso);
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.bl-summary-breakdown {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--bl-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bl-summary-amount {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.92rem;
+  color: var(--bl-muted);
+  padding: 4px 0;
+}
+.bl-amount-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bl-amount-val {
+  font-weight: 600;
+  color: var(--bl-espresso);
+}
+.bl-discount-with-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--bl-caramel-text);
+  font-weight: 600;
+}
+.bl-discount-highlight {
+  color: var(--bl-caramel);
+  font-weight: 700;
+}
+.bl-summary-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-top: 16px;
+  margin-top: 8px;
+  border-top: 2px solid var(--bl-border);
+}
+.bl-total-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--bl-espresso);
+}
+.bl-total-tax-note {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--bl-muted);
+  margin-top: 2px;
+}
+.bl-total-number {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--bl-espresso);
+  font-family: var(--bl-display);
+  letter-spacing: -0.01em;
+}
+
+/* Thanh nhỏ hạn thanh toán của hóa đơn và Div hiện giờ màu đỏ neon */
+.bl-invoice-deadline-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  margin: 16px 0 22px;
+  border-radius: var(--bl-radius-md);
+  background: #1c0d10;
+  border: 1.5px solid rgba(255, 30, 66, 0.45);
+  box-shadow: 0 4px 16px rgba(255, 30, 66, 0.14), inset 0 0 12px rgba(255, 30, 66, 0.08);
+}
+.bl-deadline-info-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bl-deadline-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 30, 66, 0.16);
+  color: #ff2b4f;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.bl-deadline-label {
+  display: block;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #ffffff;
+}
+.bl-deadline-sublabel {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: #fecaca;
+  opacity: 0.92;
+}
+.bl-neon-timer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  background: #0d0204;
+  color: #ff183e;
+  border: 1px solid #ff2a4f;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 6px #ff183e, 0 0 14px rgba(255, 24, 62, 0.85), 0 0 24px rgba(255, 24, 62, 0.5);
+  box-shadow: 0 0 10px rgba(255, 24, 62, 0.45), inset 0 0 8px rgba(255, 24, 62, 0.25);
+  animation: blNeonPulse 2s infinite ease-in-out;
+  flex: none;
+}
+
+@keyframes blNeonPulse {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(255, 24, 62, 0.4), inset 0 0 6px rgba(255, 24, 62, 0.2);
+    text-shadow: 0 0 5px #ff183e, 0 0 12px rgba(255, 24, 62, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(255, 24, 62, 0.7), inset 0 0 12px rgba(255, 24, 62, 0.35);
+    text-shadow: 0 0 8px #ff183e, 0 0 22px rgba(255, 24, 62, 1);
+  }
+}
+
+/* Payment History in Payment Details */
+.bl-payment-history-wrap {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--bl-border-subtle);
+}
+.bl-payment-history-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--bl-espresso);
+  margin-bottom: 10px;
+}
+.bl-payment-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bl-payment-record-card {
+  padding: 12px 14px;
+  border: 1px solid var(--bl-border);
+  border-radius: var(--bl-radius-sm);
+  background: var(--bl-bg-subtle);
+  font-size: 0.88rem;
+}
+.bl-payment-record-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.bl-payment-record-id {
+  font-weight: 700;
+  color: var(--bl-coffee);
+}
+.bl-payment-record-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--bl-radius-pill);
+  background: var(--bl-sand);
+  color: var(--bl-ink);
+}
+.bl-payment-amount-row {
+  margin: 0 0 4px;
+}
+.bl-payment-meta {
+  margin: 2px 0;
+  font-size: 0.8rem;
+  color: var(--bl-muted);
+}
+.bl-payment-meta code {
+  font-size: 0.78rem;
+  background: var(--bl-sand);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.bl-reconcile-note {
+  color: var(--bl-warning-text);
+  background: var(--bl-warning-bg);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  margin: 4px 0;
+}
+
 /* Admin Styles */
 .bl-admin h1 { margin: 0 0 24px; font-family: var(--bl-display); font-size: 32px; }
 .bl-admin-nav { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }

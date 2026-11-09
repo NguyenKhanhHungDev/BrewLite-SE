@@ -1,9 +1,11 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { isObject } from "@/lib/api";
 import { parsePaymentStatus, type PaymentStatus } from "@/lib/payments";
 import { money } from "@/lib/pricing";
+import { ClockIcon, RefreshIcon, ExclamationIcon } from "./Icons";
 
 type Payment = {
   id: number;
@@ -15,30 +17,51 @@ type Payment = {
   createdAt: string;
   paidAt: string | null;
 };
+
 export function PaymentRows({ payments }: { payments: Payment[] }) {
-  return payments.length ? (
-    payments.map((p) => (
-      <article className="bl-panel" key={p.id}>
-        <h3>Lần thanh toán #{p.id}</h3>
-        <p>
-          {money(p.amount)} · {p.method}
-        </p>
-        <p>Trạng thái thanh toán: {p.status}</p>
-        {p.status === "RECONCILIATION_REQUIRED" && (
-          <p>Cần kiểm tra tại quầy; chưa thể kết luận thanh toán thất bại.</p>
-        )}
-        <p>Mã yêu cầu: {p.transactionRef ?? "Chưa có"}</p>
-        <p>Mã giao dịch gateway: {p.providerTransactionId ?? "Chưa có"}</p>
-        <p>Tạo lúc: {new Date(p.createdAt).toLocaleString("vi-VN")}</p>
-        {p.paidAt && (
-          <p>Thanh toán lúc: {new Date(p.paidAt).toLocaleString("vi-VN")}</p>
-        )}
-      </article>
-    ))
-  ) : (
-    <p>Chưa có lần thanh toán nào.</p>
+  if (!payments.length) return null;
+
+  return (
+    <div className="bl-payment-history-wrap">
+      <h3 className="bl-payment-history-title">Lịch sử giao dịch</h3>
+      <div className="bl-payment-history-list">
+        {payments.map((p) => (
+          <article className="bl-payment-record-card" key={p.id}>
+            <div className="bl-payment-record-header">
+              <span className="bl-payment-record-id">Lần thanh toán #{p.id}</span>
+              <span className={`bl-payment-record-badge bl-status-${p.status.toLowerCase()}`}>
+                {p.status}
+              </span>
+            </div>
+            <div className="bl-payment-record-details">
+              <p className="bl-payment-amount-row">
+                <strong>{money(p.amount)}</strong> · <span>{p.method}</span>
+              </p>
+              {p.status === "RECONCILIATION_REQUIRED" && (
+                <p className="bl-reconcile-note">
+                  Cần kiểm tra tại quầy; chưa thể kết luận thanh toán thất bại.
+                </p>
+              )}
+              {p.transactionRef && (
+                <p className="bl-payment-meta">Mã yêu cầu: <code>{p.transactionRef}</code></p>
+              )}
+              {p.providerTransactionId && (
+                <p className="bl-payment-meta">Mã giao dịch gateway: <code>{p.providerTransactionId}</code></p>
+              )}
+              <p className="bl-payment-meta">Tạo lúc: {new Date(p.createdAt).toLocaleString("vi-VN")}</p>
+              {p.paidAt && (
+                <p className="bl-payment-meta bl-paid-at">
+                  Thanh toán lúc: {new Date(p.paidAt).toLocaleString("vi-VN")}
+                </p>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
   );
 }
+
 export function parsePaymentRows(value: unknown): Payment[] {
   if (!Array.isArray(value)) throw new Error("Dữ liệu giao dịch không hợp lệ.");
   return value.map((p) => {
@@ -60,6 +83,7 @@ export function parsePaymentRows(value: unknown): Payment[] {
     return p as Payment;
   });
 }
+
 export default function PaymentDetails({
   orderId,
   revision = 0,
@@ -87,6 +111,7 @@ export default function PaymentDetails({
   const [retry, setRetry] = useState(0);
   const [verificationRevision, setVerificationRevision] = useState(0);
   const [verificationError, setVerificationError] = useState(false);
+
   useEffect(() => {
     if (verificationRevision === 0) return;
     const controller = new AbortController();
@@ -110,6 +135,7 @@ export default function PaymentDetails({
       });
     return () => controller.abort();
   }, [verificationRevision, orderId, request, onStatus]);
+
   useEffect(() => {
     const controller = new AbortController();
     request(`/payments/${orderId}/details`, { signal: controller.signal })
@@ -150,6 +176,7 @@ export default function PaymentDetails({
       });
     return () => controller.abort();
   }, [request, orderId, revision, retry]);
+
   useEffect(() => {
     if (!data?.pending || data.deadline === null) return;
 
@@ -174,34 +201,53 @@ export default function PaymentDetails({
     tick();
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [data, onExpired, onDeadlineReached, request, orderId]);
+  }, [data, onExpired, onDeadlineReached]);
   return (
-    <section aria-label="Thông tin thanh toán">
-      <h2>Chi tiết giao dịch</h2>
+    <div className="bl-payment-details-container" aria-label="Thông tin hạn thanh toán và giao dịch">
       {error && (
-        <p role="alert">
-          {error}{" "}
+        <div className="bl-alert bl-alert-error" role="alert">
+          <ExclamationIcon size={16} />
+          <span>{error}</span>
           <button
             type="button"
+            className="bl-text-button"
+            style={{ marginLeft: "auto" }}
             onClick={() => {
               if (verificationError) setVerificationRevision((v) => v + 1);
               else setRetry((v) => v + 1);
             }}
           >
-            Thử lại
+            <RefreshIcon size={14} /> Thử lại
           </button>
-        </p>
+        </div>
       )}
-      {!data && !error && <p role="status">Đang tải giao dịch…</p>}
+
+      {/* Thanh nhỏ hạn thanh toán của hóa đơn với div hiện giờ màu đỏ neon */}
       {data?.pending && data.deadline !== null && now !== null && (
-        <p>
-          Hạn thanh toán của đơn (không phải hạn gateway):{" "}
-          {Math.floor(now / 60)}:{String(now % 60).padStart(2, "0")}.{" "}
-          {now === 0 &&
-            "Đã hết thời gian trên đồng hồ. Đang chờ kết quả backend; chưa thanh toán lại."}
-        </p>
+        <div className="bl-invoice-deadline-bar" role="timer" aria-live="polite">
+          <div className="bl-deadline-info-wrap">
+            <div className="bl-deadline-icon-box" aria-hidden="true">
+              <ClockIcon size={20} />
+            </div>
+            <div>
+              <span className="bl-deadline-label">Hạn thanh toán hóa đơn #{orderId}</span>
+              <p className="bl-deadline-sublabel">
+                {now > 0
+                  ? "Vui lòng thanh toán trước khi đơn hàng hết hạn giữ chỗ"
+                  : "Hóa đơn đã hết thời gian trên đồng hồ"}
+              </p>
+            </div>
+          </div>
+          <div
+            className="bl-neon-timer"
+            aria-label={`Thời gian còn lại ${Math.floor(now / 60)} phút ${now % 60} giây`}
+          >
+            {String(Math.floor(now / 60)).padStart(2, "0")}:{String(now % 60).padStart(2, "0")}
+          </div>
+        </div>
       )}
+
       {data && <PaymentRows payments={data.payments} />}
-    </section>
+    </div>
   );
 }
