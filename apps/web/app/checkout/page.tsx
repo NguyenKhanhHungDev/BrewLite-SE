@@ -6,6 +6,7 @@ import { useCart } from "@/components/CartProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { useCheckout } from "@/components/CheckoutProvider";
 import PaymentDetails from "@/components/PaymentDetails";
+import CheckoutPaymentWatcher from "@/components/CheckoutPaymentWatcher";
 import CartSummary from "@/components/CartSummary";
 import PromotionField from "@/components/PromotionField";
 import LoyaltyBalance from "@/components/LoyaltyBalance";
@@ -223,6 +224,13 @@ export default function CheckoutPage() {
             </section>
           ) : (
             <div className="bl-flow-grid">
+              {purchase?.status === "PENDING" && (
+                <CheckoutPaymentWatcher
+                  key={purchase.orderId}
+                  orderId={purchase.orderId}
+                  total={purchase.total}
+                />
+              )}
               <div className="bl-checkout-main">
               {/* Left Column: Checkout Action Form */}
               <section className="bl-panel bl-checkout-panel" aria-busy={busy}>
