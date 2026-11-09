@@ -47,7 +47,6 @@ type ParsedOrderInput = {
   items: InputItem[];
   promoCode?: string;
   recipientName: string;
-  recipientPhone: string;
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -59,13 +58,13 @@ function parseOrderInput(body: unknown): ParsedOrderInput {
     !isObject(body) ||
     Object.keys(body).some(
       (key) =>
-        !['items', 'promoCode', 'recipientName', 'recipientPhone'].includes(
+        !['items', 'promoCode', 'recipientName'].includes(
           key,
         ),
     )
   ) {
     throw new BadRequestException(
-      'Body chỉ được chứa items, promoCode, recipientName và recipientPhone',
+      'Body chỉ được chứa items, promoCode, recipientName',
     );
   }
   if (!Array.isArray(body.items) || body.items.length === 0) {
@@ -85,16 +84,6 @@ function parseOrderInput(body: unknown): ParsedOrderInput {
   if (recipientName.length < 2 || recipientName.length > 100) {
     throw new BadRequestException('recipientName phải có từ 2 đến 100 ký tự');
   }
-  if (typeof body.recipientPhone !== 'string') {
-    throw new BadRequestException('recipientPhone là bắt buộc');
-  }
-  const recipientPhone = body.recipientPhone.trim().replace(/[\s().-]/g, '');
-  if (!/^\+?\d{8,15}$/.test(recipientPhone)) {
-    throw new BadRequestException(
-      'recipientPhone phải có từ 8 đến 15 chữ số, có thể bắt đầu bằng +',
-    );
-  }
-
   const items = body.items.map((item: unknown) => {
     if (
       !isObject(item) ||
@@ -177,7 +166,6 @@ function parseOrderInput(body: unknown): ParsedOrderInput {
   return {
     items,
     recipientName,
-    recipientPhone,
     ...(body.promoCode === undefined
       ? {}
       : { promoCode: body.promoCode as string }),
@@ -200,7 +188,6 @@ function hashRequest(input: ParsedOrderInput): string {
         items: input.items,
         promoCode: input.promoCode?.trim().toUpperCase() ?? null,
         recipientName: input.recipientName,
-        recipientPhone: input.recipientPhone,
       }),
     )
     .digest('hex');
@@ -269,8 +256,7 @@ export class OrdersService {
         const legacyHash = hashLegacyRequest(input);
         if (
           existing.idempotencyHash === legacyHash &&
-          existing.recipientName == null &&
-          existing.recipientPhone == null
+          existing.recipientName == null
         ) {
           const upgraded = await this.store.updateLegacyRecipientSnapshot(
             userId,
@@ -278,7 +264,6 @@ export class OrdersService {
             legacyHash,
             idempotencyHash,
             input.recipientName,
-            input.recipientPhone,
           );
           if (upgraded) {
             return replayResult(
@@ -389,7 +374,6 @@ export class OrdersService {
       discount: promotion.discount,
       promoCode: promotion.promoCode,
       recipientName: input.recipientName,
-      recipientPhone: input.recipientPhone,
       idempotencyKey,
       idempotencyHash,
       items: lines,

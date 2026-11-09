@@ -4,7 +4,7 @@ import { useAuth } from "./AuthProvider";
 import { isObject } from "@/lib/api";
 export default function AccountProfile() {
   const { request } = useAuth();
-  const [profile, setProfile] = useState({ email: "", name: "", phone: "" });
+  const [profile, setProfile] = useState({ email: "", name: "" });
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -16,15 +16,13 @@ export default function AccountProfile() {
         if (
           !isObject(value) ||
           typeof value.email !== "string" ||
-          !(value.name === null || typeof value.name === "string") ||
-          !(value.phone === null || typeof value.phone === "string")
+          !(value.name === null || typeof value.name === "string")
         )
           throw new Error("Hồ sơ không hợp lệ.");
         if (!controller.signal.aborted) {
           setProfile({
             email: value.email,
             name: value.name ?? "",
-            phone: value.phone ?? "",
           });
           setLoaded(true);
           setMessage("");
@@ -47,7 +45,6 @@ export default function AccountProfile() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: profile.name.trim(),
-          phone: profile.phone,
         }),
       });
       setMessage("Đã lưu hồ sơ.");
@@ -76,21 +73,6 @@ export default function AccountProfile() {
               value={profile.name}
               onChange={(e) =>
                 setProfile((p) => ({ ...p, name: e.target.value }))
-              }
-              disabled={busy}
-            />
-          </label>
-          <label className="bl-field">
-            Số điện thoại
-            <input
-              required
-              type="tel"
-              autoComplete="tel"
-              pattern="(0[0-9]{9}|\+84[0-9]{9})"
-              title="10 chữ số bắt đầu bằng 0 hoặc +84 và 9 chữ số"
-              value={profile.phone}
-              onChange={(e) =>
-                setProfile((p) => ({ ...p, phone: e.target.value }))
               }
               disabled={busy}
             />

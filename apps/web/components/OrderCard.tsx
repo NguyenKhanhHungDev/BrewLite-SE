@@ -99,7 +99,7 @@ export default function OrderCard({
       <OrderTimeline status={order.status} />
 
       {/* Recipient info if recorded */}
-      {(order.recipientName || order.recipientPhone) && (
+      {order.recipientName && (
         <div
           className="bl-order-recipient"
           style={{ margin: "0.75rem 0", fontSize: "0.9rem" }}
@@ -109,7 +109,6 @@ export default function OrderCard({
           </strong>
           <span>
             {order.recipientName}
-            {order.recipientPhone ? ` (${order.recipientPhone})` : ""}
           </span>
         </div>
       )}

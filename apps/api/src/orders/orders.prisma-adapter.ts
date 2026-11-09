@@ -61,7 +61,6 @@ interface OrderRow {
   createdAt: Date;
   expiresAt: Date | null;
   recipientName?: string | null;
-  recipientPhone?: string | null;
   userEmail?: string;
   paymentStatus?: string | null;
   cancellationReason?: string | null;
@@ -216,7 +215,7 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
     key: string,
   ): Promise<StoredOrderResult | null> {
     const rows = await this.prisma.$queryRaw<StoredOrderResult[]>`
-      SELECT "id", "status", "total", "idempotencyHash", "recipientName", "recipientPhone"
+      SELECT "id", "status", "total", "idempotencyHash", "recipientName"
       FROM "Order"
       WHERE "userId" = ${userId} AND "idempotencyKey" = ${key}
       LIMIT 1
@@ -230,18 +229,15 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
     legacyHash: string,
     currentHash: string,
     recipientName: string,
-    recipientPhone: string,
   ): Promise<boolean> {
     const updated = await this.prisma.$queryRaw<Array<{ id: number }>>`
       UPDATE "Order"
       SET "recipientName" = ${recipientName},
-          "recipientPhone" = ${recipientPhone},
           "idempotencyHash" = ${currentHash}
       WHERE "userId" = ${userId}
         AND "idempotencyKey" = ${key}
         AND "idempotencyHash" = ${legacyHash}
         AND "recipientName" IS NULL
-        AND "recipientPhone" IS NULL
       RETURNING "id"
     `;
     return updated.length === 1;
@@ -256,7 +252,7 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
           SELECT pg_advisory_xact_lock(${draft.userId}, hashtext(${draft.idempotencyKey}))::text AS "locked"
         `;
         const existing = await tx.$queryRaw<StoredOrderResult[]>`
-          SELECT "id", "status", "total", "idempotencyHash", "recipientName", "recipientPhone"
+          SELECT "id", "status", "total", "idempotencyHash", "recipientName"
           FROM "Order"
           WHERE "userId" = ${draft.userId}
             AND "idempotencyKey" = ${draft.idempotencyKey}
@@ -341,12 +337,12 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       const orderRows = await tx.$queryRaw<StoredOrderResult[]>`
         INSERT INTO "Order" (
           "userId", "status", "total", "discount", "promoCode",
-          "recipientName", "recipientPhone",
+          "recipientName",
           "idempotencyKey", "idempotencyHash", "expiresAt"
         )
         VALUES (
           ${draft.userId}, ${draft.status}, ${draft.total}, ${draft.discount},
-          ${draft.promoCode}, ${draft.recipientName}, ${draft.recipientPhone},
+          ${draft.promoCode}, ${draft.recipientName},
           ${draft.idempotencyKey}, ${draft.idempotencyHash},
           CURRENT_TIMESTAMP + INTERVAL '15 minutes'
         )
@@ -387,7 +383,7 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
     const orders = await this.prisma.$queryRaw<OrderRow[]>`
       SELECT
         "id", "status", "total", "createdAt", "expiresAt",
-        "recipientName", "recipientPhone"
+        "recipientName"
       FROM "Order"
       WHERE "id" = ${orderId} AND "userId" = ${userId}
       LIMIT 1
@@ -402,7 +398,6 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       createdAt: order.createdAt,
       expiresAt: order.expiresAt,
       recipientName: order.recipientName ?? null,
-      recipientPhone: order.recipientPhone ?? null,
       items,
     };
   }
@@ -411,7 +406,7 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
     const orders = await this.prisma.$queryRaw<OrderRow[]>`
       SELECT
         o."id", o."status", o."total", o."createdAt", o."expiresAt",
-        o."recipientName", o."recipientPhone", o."cancellationReason", o."cancelledAt", o."cancelledById",
+        o."recipientName", o."cancellationReason", o."cancelledAt", o."cancelledById",
         u."email" AS "userEmail",
         (SELECT p."status" FROM "Payment" p WHERE p."orderId" = o."id" ORDER BY p."createdAt" DESC, p."id" DESC LIMIT 1) AS "paymentStatus"
       FROM "Order" o
@@ -428,7 +423,6 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       createdAt: order.createdAt,
       expiresAt: order.expiresAt,
       recipientName: order.recipientName ?? null,
-      recipientPhone: order.recipientPhone ?? null,
       userEmail: order.userEmail ?? '',
       paymentStatus: order.paymentStatus ?? null,
       cancellationReason: order.cancellationReason ?? null,
@@ -456,13 +450,13 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
         WHERE (${dateFrom}::timestamptz IS NULL OR o."createdAt" >= ${dateFrom})
           AND (${dateToExclusive}::timestamptz IS NULL OR o."createdAt" < ${dateToExclusive})
           AND (${status}::text IS NULL OR o."status" = ${status})
-          AND (${search}::text IS NULL OR POSITION(LOWER(${search}) IN LOWER(CONCAT(o."id"::text, ' ', u."email", ' ', u."name", ' ', u."phone", ' ', o."recipientName", ' ', o."recipientPhone"))) > 0)
+          AND (${search}::text IS NULL OR POSITION(LOWER(${search}) IN LOWER(CONCAT(o."id"::text, ' ', u."email", ' ', u."name", ' ', o."recipientName"))) > 0)
           AND (${paymentStatus}::text IS NULL OR COALESCE((SELECT p."status" FROM "Payment" p WHERE p."orderId" = o."id" ORDER BY p."createdAt" DESC, p."id" DESC LIMIT 1), 'NONE') = ${paymentStatus})
       `,
         this.prisma.$queryRaw<Array<OrderRow & { items: OrderItemRow[] }>>`
         SELECT
           o."id", o."status", o."total", o."createdAt", o."expiresAt",
-          o."recipientName", o."recipientPhone",
+          o."recipientName",
           u."email" AS "userEmail",
           (SELECT p."status" FROM "Payment" p WHERE p."orderId" = o."id" ORDER BY p."createdAt" DESC, p."id" DESC LIMIT 1) AS "paymentStatus",
           COALESCE((
@@ -488,7 +482,7 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
         WHERE (${dateFrom}::timestamptz IS NULL OR o."createdAt" >= ${dateFrom})
           AND (${dateToExclusive}::timestamptz IS NULL OR o."createdAt" < ${dateToExclusive})
           AND (${status}::text IS NULL OR o."status" = ${status})
-          AND (${search}::text IS NULL OR POSITION(LOWER(${search}) IN LOWER(CONCAT(o."id"::text, ' ', u."email", ' ', u."name", ' ', u."phone", ' ', o."recipientName", ' ', o."recipientPhone"))) > 0)
+          AND (${search}::text IS NULL OR POSITION(LOWER(${search}) IN LOWER(CONCAT(o."id"::text, ' ', u."email", ' ', u."name", ' ', o."recipientName"))) > 0)
           AND (${paymentStatus}::text IS NULL OR COALESCE((SELECT p."status" FROM "Payment" p WHERE p."orderId" = o."id" ORDER BY p."createdAt" DESC, p."id" DESC LIMIT 1), 'NONE') = ${paymentStatus})
         ORDER BY o."createdAt" DESC, o."id" DESC
         LIMIT ${limit} OFFSET ${offset}
@@ -505,7 +499,6 @@ export class OrdersPrismaAdapter implements OrdersStore, OnModuleDestroy {
       createdAt: order.createdAt,
       expiresAt: order.expiresAt,
       recipientName: order.recipientName ?? null,
-      recipientPhone: order.recipientPhone ?? null,
       userEmail: order.userEmail ?? '',
       paymentStatus: order.paymentStatus ?? null,
       items: mapItems(order.items ?? []),

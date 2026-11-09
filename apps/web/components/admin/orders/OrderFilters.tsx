@@ -28,7 +28,7 @@ export default function OrderFilters({ model }: { model: OrdersModel }) {
               <input
                 value={search}
                 maxLength={200}
-                placeholder="Mã đơn, tên, email, điện thoại"
+                placeholder="Mã đơn, tên, email"
                 onChange={(e) => setSearch(e.target.value)}
               />
             </label>

@@ -40,8 +40,7 @@ export default function PaymentDetailsPanel({
             {selected.order.user.email}
           </p>
           <p>
-            Người nhận: {selected.order.recipientName ?? "—"} ·{" "}
-            {selected.order.recipientPhone ?? "—"}
+            Người nhận: {selected.order.recipientName ?? "—"}
           </p>
           <p>
             Thanh toán: {paymentName(selected.status)} · Khởi tạo:{" "}

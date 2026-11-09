@@ -30,8 +30,6 @@ export default function OrderTable({ model }: { model: OrdersModel }) {
                       #{order.id}
                       <br />
                       {order.recipientName ?? order.userEmail}
-                      <br />
-                      {order.recipientPhone}
                     </td>
                     <td>{money(order.total)}</td>
                     <td>{statusNames[order.status]}</td>

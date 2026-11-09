@@ -6,7 +6,6 @@ export interface OrderHistoryRecord {
   total: number;
   createdAt: Date;
   recipientName: string | null;
-  recipientPhone: string | null;
   items: Array<OrderPreferences & {
     recipeId: number | null;
     recipeName: string;

@@ -110,7 +110,6 @@ describe('Database-backed admin guards', () => {
         id: true,
         email: true,
         name: true,
-        phone: true,
         loyaltyPoints: true,
         role: true,
       },

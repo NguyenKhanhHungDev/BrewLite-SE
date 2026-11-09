@@ -112,12 +112,11 @@ export class AuthService implements OnModuleDestroy {
   async updateProfile(userId: number, dto: UpdateProfileDto) {
     return this.prisma.user.update({
       where: { id: userId },
-      data: { name: dto.name, phone: dto.phone },
+      data: { name: dto.name },
       select: {
         id: true,
         email: true,
         name: true,
-        phone: true,
         loyaltyPoints: true,
         role: true,
       },
@@ -130,7 +129,6 @@ export class AuthService implements OnModuleDestroy {
         id: true,
         email: true,
         name: true,
-        phone: true,
         loyaltyPoints: true,
         role: true,
       },

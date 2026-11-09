@@ -24,7 +24,6 @@ function makeTestService() {
       total: draft.total,
       idempotencyHash: draft.idempotencyHash,
       recipientName: draft.recipientName,
-      recipientPhone: draft.recipientPhone,
     };
     if (draft.idempotencyKey) {
       records.set(`${draft.userId}:${draft.idempotencyKey}`, result);
@@ -45,21 +44,18 @@ function makeTestService() {
       legacyHash: string,
       currentHash: string,
       recipientName: string,
-      recipientPhone: string,
     ) => {
       const recordKey = `${userId}:${key}`;
       const existing = records.get(recordKey);
       if (
         !existing ||
         existing.idempotencyHash !== legacyHash ||
-        existing.recipientName != null ||
-        existing.recipientPhone != null
+        existing.recipientName != null
       ) return false;
       records.set(recordKey, {
         ...existing,
         idempotencyHash: currentHash,
         recipientName,
-        recipientPhone,
       });
       return true;
     },
@@ -94,7 +90,7 @@ function makeTestService() {
 describe('A1-06 OrdersService', () => {
   const recipient = {
     recipientName: 'Nguyen Van A',
-    recipientPhone: '0901234567',
+
   };
   it('creates PENDING order and calculates price on server', async () => {
     const { service, saveOrder } = makeTestService();
@@ -111,7 +107,7 @@ describe('A1-06 OrdersService', () => {
         discount: 0,
         promoCode: null,
         recipientName: 'Nguyen Van A',
-        recipientPhone: '0901234567',
+
       }),
     );
   });
@@ -136,26 +132,17 @@ describe('A1-06 OrdersService', () => {
       }, 'preferences-recipient')).rejects.toThrow(/Idempotency-Key/);
     }
     await expect(service.create(7, {
-      ...body, recipientPhone: '0907654321',
+      ...body, recipientName: 'Other recipient',
     }, 'preferences-recipient')).rejects.toThrow(/Idempotency-Key/);
   });
 
-  it('requires valid recipient information and normalizes phone formatting', async () => {
+  it('requires a valid recipient name', async () => {
     const { service, saveOrder } = makeTestService();
-    await expect(
-      service.create(7, { items: [{ productId: 1, quantity: 1 }] }),
-    ).rejects.toThrow(/recipientName/);
-    await expect(
-      service.create(7, { ...recipient, recipientPhone: '123', items: [{ productId: 1, quantity: 1 }] }),
-    ).rejects.toThrow(/recipientPhone/);
-    await service.create(7, {
-      ...recipient,
-      recipientPhone: '+84 901-234-567',
-      items: [{ productId: 1, quantity: 1 }],
-    });
-    expect(saveOrder).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientPhone: '+84901234567' }),
-    );
+    await expect(service.create(7, { items: [{ productId: 1, quantity: 1 }] })).rejects.toThrow(/recipientName/);
+    await expect(service.create(7, { recipientName: ' ', items: [{ productId: 1, quantity: 1 }] })).rejects.toThrow(/recipientName/);
+    await service.create(7, { recipientName: '  Nguyen An  ', items: [{ productId: 1, quantity: 1 }] });
+    expect(saveOrder).toHaveBeenCalledWith(expect.objectContaining({ recipientName: 'Nguyen An' }));
+    expect(saveOrder.mock.calls[0][0]).not.toHaveProperty('recipient' + 'Phone');
   });
 
   it('rejects empty items', async () => {
@@ -285,7 +272,6 @@ describe('A1-06 OrdersService', () => {
       total: 25000,
       idempotencyHash: oldHash,
       recipientName: null,
-      recipientPhone: null,
     });
 
     const body = { ...recipient, items: [{ productId: 1, quantity: 1 }] };
@@ -298,7 +284,6 @@ describe('A1-06 OrdersService', () => {
     expect(saveOrder).not.toHaveBeenCalled();
     expect(records.get(`7:${key}`)).toMatchObject({
       recipientName: recipient.recipientName,
-      recipientPhone: recipient.recipientPhone,
     });
     await service.create(7, body, key);
     expect(updateLegacyRecipientSnapshot).toHaveBeenCalledOnce();
