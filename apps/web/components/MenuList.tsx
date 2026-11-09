@@ -61,12 +61,13 @@ export default function MenuList({
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<CategoryKey>("all");
 
-  const [timeOfDay] = useState<{
-    key: "morning" | "afternoon" | "evening";
-    title: string;
-    subtitle: string;
-    icon: React.ReactNode;
-  }>(getTimeOfDay);
+  const [timeOfDay, setTimeOfDay] = useState<ReturnType<typeof getTimeOfDay> | null>(null);
+
+  useEffect(() => {
+    // Read the browser's clock after hydration, never during static prerendering.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTimeOfDay(getTimeOfDay());
+  }, []);
 
   // Debounce for search
   useEffect(() => {
@@ -126,14 +127,14 @@ export default function MenuList({
         );
       }
       if (activeCategory === "time_of_day") {
-        if (timeOfDay.key === "morning") {
+        if (timeOfDay?.key === "morning") {
           return (
             product.category === "COFFEE" ||
             name.includes("cà phê") ||
             name.includes("bạc xỉu")
           );
         }
-        if (timeOfDay.key === "afternoon") {
+        if (timeOfDay?.key === "afternoon") {
           return (
             name.includes("trà đào") ||
             name.includes("trà vải") ||
@@ -149,7 +150,7 @@ export default function MenuList({
 
       return true;
     });
-  }, [allProducts, debouncedQuery, activeCategory, timeOfDay.key]);
+  }, [allProducts, debouncedQuery, activeCategory, timeOfDay?.key]);
 
   // Curated lists for highlights
   const bestSellers = useMemo(() => {
@@ -231,12 +232,13 @@ export default function MenuList({
           <button
             type="button"
             role="tab"
+            disabled={!timeOfDay}
             aria-selected={activeCategory === "time_of_day"}
             className={`bl-chip ${activeCategory === "time_of_day" ? "bl-chip-active" : ""}`}
             onClick={() => setActiveCategory("time_of_day")}
           >
-            {timeOfDay.icon}
-            <span>{timeOfDay.title}</span>
+            {timeOfDay?.icon ?? <SunIcon size={18} />}
+            <span>{timeOfDay?.title ?? "Gợi ý theo thời gian"}</span>
           </button>
 
           <button
