@@ -16,7 +16,7 @@ export default function PaymentFilters({ model }: { model: PaymentsModel }) {
               <input
                 maxLength={200}
                 value={filters.search}
-                placeholder="Mã giao dịch, đơn, tên, email, điện thoại"
+                placeholder="Mã giao dịch, đơn, tên, email"
                 onChange={(e) =>
                   setFilters({ ...filters, search: e.target.value })
                 }

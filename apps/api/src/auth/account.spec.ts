@@ -15,21 +15,20 @@ function service(prisma: unknown) {
   }) as AuthService;
 }
 describe('Account', () => {
-  it('validates names, Vietnamese phone numbers and rejects profile privilege changes', async () => {
+  it('validates names and rejects profile privilege changes', async () => {
     const options = { whitelist: true, forbidNonWhitelisted: true };
     expect(
       await validate(
         plainToInstance(UpdateProfileDto, {
           name: ' Hưng ',
-          phone: '0912345678',
         }),
         options,
       ),
     ).toHaveLength(0);
     for (const payload of [
-      { name: '', phone: '123' },
-      { name: 'x'.repeat(101), phone: '+84912345678' },
-      { name: 'Hưng', phone: '0912345678', role: 'ADMIN' },
+      { name: '' },
+      { name: 'x'.repeat(101) },
+      { name: 'Hưng', role: 'ADMIN' },
     ]) {
       expect(
         (await validate(plainToInstance(UpdateProfileDto, payload), options))
@@ -123,14 +122,13 @@ describe('Account', () => {
   it('updates only the authenticated profile and allowlists returned fields', async () => {
     const update = vi
       .fn()
-      .mockResolvedValue({ id: 7, name: 'Hưng', phone: '0912345678' });
+      .mockResolvedValue({ id: 7, name: 'Hưng' });
     await service({ user: { update } }).updateProfile(7, {
       name: 'Hưng',
-      phone: '0912345678',
     });
     expect(update.mock.calls[0][0]).toMatchObject({
       where: { id: 7 },
-      data: { name: 'Hưng', phone: '0912345678' },
+      data: { name: 'Hưng' },
     });
     expect(update.mock.calls[0][0].select.passwordHash).toBeUndefined();
     for (const method of ['changePassword', 'updateProfile'] as const)
