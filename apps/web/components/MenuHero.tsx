@@ -65,7 +65,7 @@ export default function MenuHero({
     try {
       if (!ready) throw new Error("Đang khôi phục giỏ hàng, vui lòng chờ.");
       add(p, "M", [], 1);
-      toast.success(`Đã thêm 1 ly ${p.name} vào giỏ hàng!`);
+      toast.success(`Đã thêm ${p.name}.`);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Không thể thêm vào giỏ hàng.");
     }
