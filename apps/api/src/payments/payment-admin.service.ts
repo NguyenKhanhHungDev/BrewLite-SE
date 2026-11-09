@@ -66,14 +66,12 @@ export class PaymentAdminService {
                       recipientName: { contains: search, mode: 'insensitive' },
                     },
                     {
-                      recipientPhone: { contains: search, mode: 'insensitive' },
                     },
                     {
                       user: {
                         OR: [
                           { email: { contains: search, mode: 'insensitive' } },
                           { name: { contains: search, mode: 'insensitive' } },
-                          { phone: { contains: search, mode: 'insensitive' } },
                         ],
                       },
                     },
@@ -102,7 +100,6 @@ export class PaymentAdminService {
                 status: true,
                 total: true,
                 recipientName: true,
-                recipientPhone: true,
                 user: { select: { id: true, name: true, email: true } },
               },
             },
@@ -129,7 +126,6 @@ export class PaymentAdminService {
             total: true,
             createdAt: true,
             recipientName: true,
-            recipientPhone: true,
             user: { select: { id: true, name: true, email: true } },
             payments: {
               select: safePaymentSelect,

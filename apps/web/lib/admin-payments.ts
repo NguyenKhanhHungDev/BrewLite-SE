@@ -23,7 +23,6 @@ export type AdminPayment = PaymentHistory & {
     status: string;
     total: number;
     recipientName: string | null;
-    recipientPhone: string | null;
     user: { id: number; name: string | null; email: string };
     payments?: PaymentHistory[];
   };
@@ -66,7 +65,6 @@ export function parseAdminPayment(value: unknown): AdminPayment {
     !Number.isSafeInteger(value.order.total) ||
     Number(value.order.total) < 0 ||
     !stringOrNull(value.order.recipientName) ||
-    !stringOrNull(value.order.recipientPhone) ||
     !isObject(value.order.user) ||
     !Number.isSafeInteger(value.order.user.id) ||
     Number(value.order.user.id) < 1 ||

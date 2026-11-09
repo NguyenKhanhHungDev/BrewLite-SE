@@ -51,7 +51,6 @@ export interface OrderDraft {
   discount: number;
   promoCode: string | null;
   recipientName: string;
-  recipientPhone: string;
   idempotencyKey: string | null;
   idempotencyHash: string | null;
   items: OrderLine[];
@@ -63,7 +62,6 @@ export interface StoredOrderResult {
   total: number;
   idempotencyHash: string | null;
   recipientName?: string | null;
-  recipientPhone?: string | null;
 }
 
 export interface OrderDetailRecord {
@@ -73,7 +71,6 @@ export interface OrderDetailRecord {
   createdAt: Date;
   expiresAt: Date | null;
   recipientName: string | null;
-  recipientPhone: string | null;
   items: Array<
     OrderPreferences & {
       recipeId: number | null;
@@ -125,7 +122,6 @@ export interface OrdersStore {
     legacyHash: string,
     currentHash: string,
     recipientName: string,
-    recipientPhone: string,
   ): Promise<boolean>;
   saveOrder(draft: OrderDraft): Promise<StoredOrderResult>;
   findOrderForUser(

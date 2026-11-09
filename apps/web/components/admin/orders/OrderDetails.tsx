@@ -57,7 +57,6 @@ export default function OrderDetails({ model }: { model: OrdersModel }) {
               <p>
                 Người nhận: {selected.recipientName ?? "Đơn cũ chưa có dữ liệu"}
               </p>
-              <p>Số điện thoại người nhận: {selected.recipientPhone ?? "—"}</p>
               <p>Thanh toán: {paymentName(selected.paymentStatus)}</p>
               {selected.expiresAt && (
                 <p>

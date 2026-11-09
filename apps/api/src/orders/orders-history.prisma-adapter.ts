@@ -14,7 +14,6 @@ interface HistoryRow extends OrderPreferences {
   total: number;
   createdAt: Date;
   recipientName: string | null;
-  recipientPhone: string | null;
   recipeId: number | null;
   recipeName: string | null;
   productId: number | null;
@@ -44,7 +43,7 @@ export class OrdersHistoryPrismaAdapter
     const rows = await this.prisma.$queryRaw<HistoryRow[]>`
       SELECT
         o."id" AS "orderId", o."status", o."total", o."createdAt",
-        o."recipientName", o."recipientPhone",
+        o."recipientName",
         oi."recipeId", oi."recipeName", oi."productId",
         product."name" AS "productName",
         oi."quantity", oi."size", oi."toppings", oi."unitPrice", oi."subtotal",
@@ -67,7 +66,6 @@ export class OrdersHistoryPrismaAdapter
           total: Number(row.total),
           createdAt: row.createdAt,
           recipientName: row.recipientName ?? null,
-          recipientPhone: row.recipientPhone ?? null,
           items: [],
         };
         orders.set(id, order);

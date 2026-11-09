@@ -175,7 +175,7 @@ describe.skipIf(!integrationEnabled)(
       const req = request(app.getHttpServer()).post('/orders').set('Authorization', `Bearer ${token}`);
       if (key) req.set('Idempotency-Key', key);
       const payload = body && typeof body === 'object' && !Array.isArray(body)
-        ? { recipientName: 'Integration Customer', recipientPhone: '0901234567', ...(body as Record<string, unknown>) }
+        ? { recipientName: 'Integration Customer', ...(body as Record<string, unknown>) }
         : body;
       return req.send(payload as object);
     };
@@ -453,7 +453,7 @@ describe.skipIf(!integrationEnabled)(
         const customerDetail = await http.get(`/orders/${id}`).set('Authorization', `Bearer ${a.token}`).expect(200);
         expect(customerDetail.body).toMatchObject({
           recipientName: 'Integration Customer',
-          recipientPhone: '0901234567',
+
           items: [expect.objectContaining(preferences)],
         });
         await http.get(`/orders/${id}`).set('Authorization', `Bearer ${b.token}`).expect(404);
@@ -472,7 +472,7 @@ describe.skipIf(!integrationEnabled)(
         const adminDetail = await http.get(`/admin/orders/${id}`).set('Authorization', `Bearer ${admin.token}`).expect(200);
         expect(adminDetail.body).toMatchObject({
           recipientName: 'Integration Customer',
-          recipientPhone: '0901234567',
+
           items: [expect.objectContaining(preferences)],
         });
 
@@ -527,7 +527,7 @@ describe.skipIf(!integrationEnabled)(
         const history = await http.get('/orders/me').set('Authorization', `Bearer ${a.token}`).expect(200);
         expect(history.body).toEqual(expect.arrayContaining([
           expect.objectContaining({
-            id, recipientName: 'Integration Customer', recipientPhone: '0901234567',
+            id, recipientName: 'Integration Customer',
             items: [expect.objectContaining(preferences)],
           }),
         ]));

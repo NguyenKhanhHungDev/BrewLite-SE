@@ -45,7 +45,8 @@ model Order {
   idempotencyHash String?
   expiresAt       DateTime?
   recipientName   String?
-  recipientPhone  String?
+  // Legacy order data only; no longer collected or exposed by the application.
+  recipientPhone  String? @ignore
   createdAt       DateTime          @default(now())
   cancellationReason String? @db.VarChar(300)
   cancelledAt DateTime?

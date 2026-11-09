@@ -33,7 +33,6 @@ export default function CheckoutPage() {
   const [recipientInput, setRecipientInput] = useState<{
     owner: number | undefined;
     name: string;
-    phone: string;
   } | null>(null);
 
   const owned =
@@ -56,11 +55,9 @@ export default function CheckoutPage() {
     recipientInput?.owner === auth.session?.userId ? recipientInput : null;
   const recipientName =
     editedRecipient?.name ?? savedRecipient?.recipientName ?? "";
-  const recipientPhone =
-    editedRecipient?.phone ?? savedRecipient?.recipientPhone ?? "";
 
-  function editRecipient(name: string, phone: string) {
-    setRecipientInput({ owner: auth.session?.userId, name, phone });
+  function editRecipient(name: string) {
+    setRecipientInput({ owner: auth.session?.userId, name });
   }
 
   const promoCode =
@@ -87,12 +84,11 @@ export default function CheckoutPage() {
 
   async function createOrder() {
     setError("");
-    editRecipient(recipientName, recipientPhone);
+    editRecipient(recipientName);
     try {
       await checkout.createOrder(
         cart.lines,
         recipientName,
-        recipientPhone,
         checkout.appliedCode || undefined,
       );
     } catch (cause) {
@@ -261,7 +257,7 @@ export default function CheckoutPage() {
                       className="bl-checkout-recipient"
                       disabled={
                         busy ||
-                        Boolean(draft?.recipientName && draft?.recipientPhone)
+                        Boolean(draft?.recipientName)
                       }
                     >
                       <legend>
@@ -275,30 +271,12 @@ export default function CheckoutPage() {
                           type="text"
                           value={recipientName}
                           onChange={(event) =>
-                            editRecipient(event.target.value, recipientPhone)
+                            editRecipient(event.target.value)
                           }
                           placeholder="Nguyễn Văn A"
                           minLength={2}
                           maxLength={100}
                           autoComplete="name"
-                          required
-                          className="bl-input"
-                        />
-                      </label>
-                      <label className="bl-checkout-field">
-                        <span className="bl-checkout-label">
-                          Số điện thoại liên hệ
-                        </span>
-                        <input
-                          type="tel"
-                          value={recipientPhone}
-                          onChange={(event) =>
-                            editRecipient(recipientName, event.target.value)
-                          }
-                          maxLength={30}
-                          autoComplete="tel"
-                          inputMode="tel"
-                          placeholder="0901234567"
                           required
                           className="bl-input"
                         />
