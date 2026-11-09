@@ -6,19 +6,7 @@ import type { Product } from "@/lib/products";
 import ProductImage from "./ProductImage";
 import { useCart } from "./CartProvider";
 import { useToast } from "./Toast";
-import { PlusIcon, FireIcon, SparklesIcon, ExclamationIcon } from "./Icons";
-
-// Helper tags based on actual product catalog
-function getProductBadge(product: Product): { label: string; icon: React.ReactNode; type: "hot" | "new" } | null {
-  const name = product.name.toLowerCase();
-  if (name.includes("cà phê sữa") || name.includes("bạc xỉu") || name.includes("trà đào")) {
-    return { label: "Bán chạy", icon: <FireIcon size={13} />, type: "hot" };
-  }
-  if (name.includes("muối") || name.includes("matcha")) {
-    return { label: "Mới ra mắt", icon: <SparklesIcon size={13} />, type: "new" };
-  }
-  return null;
-}
+import { PlusIcon, ExclamationIcon } from "./Icons";
 
 export default function ProductCard({ product }: { product: Product }) {
   const cart = useCart();
@@ -28,7 +16,6 @@ export default function ProductCard({ product }: { product: Product }) {
     ? Math.max(...Object.values(product.stockBySize))
     : product.stock;
   const isSoldOut = maxStock === 0;
-  const badge = !isSoldOut ? getProductBadge(product) : null;
 
   function handleQuickAdd(e: React.MouseEvent) {
     e.preventDefault();
@@ -37,7 +24,7 @@ export default function ProductCard({ product }: { product: Product }) {
 
     try {
       cart.add(product, "M", [], 1);
-      toast.success(`Đã thêm 1 ly ${product.name} (Size M) vào giỏ.`);
+      toast.success(`Đã thêm ${product.name}.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Chưa thể thêm vào giỏ.");
     }
@@ -63,10 +50,6 @@ export default function ProductCard({ product }: { product: Product }) {
               <ExclamationIcon size={16} /> Tạm hết nguyên liệu
             </span>
           </div>
-        ) : badge ? (
-          <span className={`bl-product-tag bl-tag-${badge.type}`}>
-            {badge.icon} {badge.label}
-          </span>
         ) : null}
       </Link>
 
@@ -83,11 +66,6 @@ export default function ProductCard({ product }: { product: Product }) {
           <p className="bl-product-price">
             {product.price.toLocaleString("vi-VN")} <span className="bl-price-unit">VND</span>
           </p>
-          {!isSoldOut && (
-            <span className="bl-stock-hint">
-              {maxStock < 10 ? `Chỉ còn ${maxStock} ly` : "Sẵn sàng pha"}
-            </span>
-          )}
         </div>
 
         <div className="bl-product-actions">

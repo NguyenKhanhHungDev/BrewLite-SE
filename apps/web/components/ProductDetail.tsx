@@ -10,9 +10,7 @@ import {
 } from "@/lib/products";
 import {
   money,
-  sizeDelta,
   sizePrice,
-  sizeNames,
   toppingNames,
   toppingPrice,
   unitPrice,
@@ -186,7 +184,7 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
 
     try {
       cart.add(product, size, toppings, quantity, { sugarLevel, iceLevel, note });
-      toast.success(`Đã thêm ${quantity} ly ${product.name} vào giỏ hàng!`);
+      toast.success(`Đã thêm ${quantity} × ${product.name}.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không thể thêm vào giỏ hàng.");
     }
@@ -265,16 +263,12 @@ export default function ProductDetail({ id: propId }: { id?: string } = {}) {
                       />
                       <div className="bl-size-top">
                         <strong className="bl-size-code">{s}</strong>
-                        {sizeDelta[s] > 0 && (
-                          <span className="bl-size-extra">
-                            +{sizeDelta[s].toLocaleString("vi-VN")}đ
-                          </span>
-                        )}
                       </div>
-                      <span className="bl-size-label">{sizeNames[s]}</span>
-                      <small className="bl-size-stock-hint">
-                        {isPriceInvalid ? "Giá chưa hợp lệ" : isSizeDisabled ? "Hết hàng" : `Còn ${sizeStock} ly`}
-                      </small>
+                      {isSizeDisabled && (
+                        <small className="bl-size-stock-hint">
+                          {isPriceInvalid ? "Giá chưa hợp lệ" : "Hết hàng"}
+                        </small>
+                      )}
                     </label>
                   );
                 })}
