@@ -75,7 +75,7 @@ export default function HeaderActions() {
               className="bl-menu-link bl-logout-btn"
               onClick={logout}
             >
-              <span>Đăng xuất</span>
+              <span>Đăng xuất mọi thiết bị</span>
             </button>
           </div>
         ) : (

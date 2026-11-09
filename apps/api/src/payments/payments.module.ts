@@ -1,4 +1,7 @@
-﻿import { Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { PaymentAdminService } from './payment-admin.service.js';
+import { PaymentReadDatabase } from './payment-read-database.js';
+import { PaymentOperationsController } from './payment-operations.controller.js';
 import { PaymentDetailsController } from './payment-details.controller.js';
 import { PaymentDetailsService } from './payment-details.service.js';
 import { AuthModule } from '../auth/auth.module.js';
@@ -10,8 +13,14 @@ import { ZalopayService } from './zalopay.service.js';
 
 @Module({
   imports: [AuthModule],
-  controllers: [PaymentsController, PaymentDetailsController],
+  controllers: [
+    PaymentOperationsController,
+    PaymentsController,
+    PaymentDetailsController,
+  ],
   providers: [
+    PaymentReadDatabase,
+    PaymentAdminService,
     PaymentDetailsService,
     PaymentsService,
     ZalopayService,

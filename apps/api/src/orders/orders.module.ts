@@ -14,6 +14,7 @@ import { ORDERS_HISTORY_STORE } from './orders-history.contract.js';
 import { OrdersHistoryPrismaAdapter } from './orders-history.prisma-adapter.js';
 import { OrdersHistoryService } from './orders-history.service.js';
 import { OrdersPrismaAdapter } from './orders.prisma-adapter.js';
+import { OrderCancellationService } from './order-cancellation.service.js';
 import { OrdersService } from './orders.service.js';
 
 @Module({
@@ -27,6 +28,7 @@ import { OrdersService } from './orders.service.js';
   ],
   providers: [
     OrdersService,
+    OrderCancellationService,
     OrdersExpirationService,
     { provide: ORDERS_STORE, useClass: OrdersPrismaAdapter },
     OrdersHistoryService,

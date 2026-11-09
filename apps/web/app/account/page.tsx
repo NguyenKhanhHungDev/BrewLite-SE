@@ -4,11 +4,11 @@ import { useAuth } from "@/components/AuthProvider";
 import ChangePassword from "@/components/ChangePassword";
 import AccountProfile from "@/components/AccountProfile";
 export default function AccountPage() {
-  const { session } = useAuth();
+  const { session, loading } = useAuth();
   return (
     <main className="bl-flow-wrap">
       <h1>Tài khoản</h1>
-      {session ? (
+      {loading ? <p role="status">Đang khôi phục phiên đăng nhập…</p> : session ? (
         <div key={session.userId}>
           <AccountProfile />
           <ChangePassword />

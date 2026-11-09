@@ -225,7 +225,7 @@ export default function CheckoutPage() {
 
               {/* Left Column: Checkout Action Form */}
               <section className="bl-panel bl-checkout-panel" aria-busy={busy}>
-                {!auth.session ? (
+                {auth.loading ? <p role="status">Đang khôi phục phiên đăng nhập…</p> : !auth.session ? (
                   <div className="bl-auth-gate">
                     <h2>Đăng nhập để đặt món</h2>
                     <p>

@@ -60,7 +60,7 @@ export default function ProductCard({ product }: { product: Product }) {
         {isSoldOut ? (
           <div className="bl-soldout-overlay">
             <span className="bl-soldout-badge">
-              <ExclamationIcon size={14} /> Tạm hết nguyên liệu
+              <ExclamationIcon size={16} /> Tạm hết nguyên liệu
             </span>
           </div>
         ) : badge ? (
@@ -109,8 +109,8 @@ export default function ProductCard({ product }: { product: Product }) {
                 : `Thêm nhanh 1 ly ${product.name} size M vào giỏ`
             }
           >
-            <PlusIcon size={18} />
-            <span className="bl-btn-text">Thêm nhanh</span>
+            {!isSoldOut && <PlusIcon size={18} />}
+            <span className="bl-btn-text">{isSoldOut ? "Tạm hết" : "Thêm nhanh"}</span>
           </button>
         </div>
       </div>

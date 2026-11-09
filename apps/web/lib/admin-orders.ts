@@ -5,6 +5,9 @@ export type AdminOrder = OrderRecord & {
   userEmail: string;
   expiresAt: string | null;
   paymentStatus: string | null;
+  cancellationReason?: string | null;
+  cancelledAt?: string | null;
+  cancelledById?: number | null;
 };
 export type AdminOrderPage = {
   data: AdminOrder[];
@@ -41,6 +44,18 @@ export function parseAdminOrder(value: unknown): AdminOrder {
     userEmail: value.userEmail,
     expiresAt: value.expiresAt,
     paymentStatus: value.paymentStatus,
+    cancellationReason:
+      typeof value.cancellationReason === "string"
+        ? value.cancellationReason
+        : null,
+    cancelledAt:
+      typeof value.cancelledAt === "string" &&
+      Number.isFinite(Date.parse(value.cancelledAt))
+        ? value.cancelledAt
+        : null,
+    cancelledById: Number.isSafeInteger(value.cancelledById)
+      ? Number(value.cancelledById)
+      : null,
   };
 }
 export function parseAdminOrders(value: unknown): AdminOrderPage {

@@ -12,6 +12,7 @@ import {
   type OrdersInventoryTransaction,
 } from './orders.inventory.js';
 import type { OrdersExpirationService as ExpirationType } from './orders.expiration.service.js';
+import type { AuthService as AuthServiceType } from '../auth/auth.service.js';
 
 /**
  * Real-PostgreSQL integration tests (Phát, steps 4-8).
@@ -32,6 +33,7 @@ describe.skipIf(!integrationEnabled)(
     let app!: INestApplication;
     let prisma!: PrismaClient;
     let expiration!: ExpirationType;
+    let auth!: AuthServiceType;
     const userIds: number[] = [];
     const recipeIds: number[] = [];
     const ingredientIds: number[] = [];
@@ -44,10 +46,12 @@ describe.skipIf(!integrationEnabled)(
       }
       const { AppModule } = await import('../app.module.js');
       const { OrdersExpirationService } = await import('./orders.expiration.service.js');
+      const { AuthService } = await import('../auth/auth.service.js');
       const testingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
       app = testingModule.createNestApplication();
       await app.init();
       expiration = testingModule.get(OrdersExpirationService);
+      auth = testingModule.get(AuthService);
       prisma = new PrismaClient({
         adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
       });
@@ -84,19 +88,20 @@ describe.skipIf(!integrationEnabled)(
 
     // ---------- fixtures ----------
     async function createUserAndLogin(role: 'CUSTOMER' | 'ADMIN' = 'CUSTOMER') {
-      const http = request(app.getHttpServer());
       const email = `orders-it-${randomUUID()}@example.test`;
       const password = 'IntegrationTest123!';
-      const registered = await http.post('/auth/register').send({ email, password }).expect(201);
-      const id = registered.body.id as number;
+      // These are Orders fixtures, not auth-rate tests: provision via the real
+      // service so many fixture users do not exhaust one localhost IP bucket.
+      // Orders HTTP requests below still exercise the real JWT/DB role guards.
+      const registered = await auth.register({ email, password });
+      const id = registered.id;
       userIds.push(id);
       if (role === 'ADMIN') {
         // Role lives in the DB only; the login token carries just `sub`.
         await prisma.$executeRaw`UPDATE "User" SET "role" = 'ADMIN' WHERE "id" = ${id}`;
       }
-      // POST /auth/login is declared with HttpCode(200).
-      const login = await http.post('/auth/login').send({ email, password }).expect(200);
-      return { id, email, token: login.body.accessToken as string };
+      const login = await auth.login({ email, password });
+      return { id, email, token: login.accessToken };
     }
 
     async function createIngredient(name: string, unit: 'g' | 'ml', stock: number) {
@@ -534,9 +539,25 @@ describe.skipIf(!integrationEnabled)(
         await http.get('/admin/orders').set('Authorization', `Bearer ${admin.token}`).expect(403);
       });
 
-      // Needs the paymentStatus query param from the shared contract (00_QUY_UOC_CHUNG.md).
-      // Phat's P03 scope filters by order status and createdAt date range only.
-      it.todo('GET /admin/orders?paymentStatus=... filters by latest payment status');
+      it('GET /admin/orders?paymentStatus=... filters by latest payment status before paging', async () => {
+        const http = request(app.getHttpServer());
+        const user = await createUserAndLogin();
+        const admin = await createUserAndLogin('ADMIN');
+        const ing = await createIngredient(`PaymentFilter-${randomUUID()}`, 'g', 1000);
+        const recipe = await createRecipe(`PaymentFilter-${randomUUID()}`, 25000, [[ing, 20]]);
+        const created = await post(user.token, {items:[item(recipe,1)]}).expect(201);
+        const orderId = created.body.orderId as number;
+        try {
+          await prisma.payment.create({data:{orderId,amount:25000,status:'SUCCESS',creationStatus:'READY',createdAt:new Date('2026-01-01T00:00:00Z')}});
+          await prisma.payment.create({data:{orderId,amount:25000,status:'FAILED',creationStatus:'REJECTED',createdAt:new Date('2026-01-02T00:00:00Z')}});
+          const latest = await http.get('/admin/orders').set('Authorization',`Bearer ${admin.token}`).query({search:user.email,paymentStatus:'FAILED',limit:1}).expect(200);
+          expect(latest.body).toMatchObject({total:1,totalPages:1});
+          expect(latest.body.data[0]).toMatchObject({id:orderId,paymentStatus:'FAILED'});
+          const older = await http.get('/admin/orders').set('Authorization',`Bearer ${admin.token}`).query({search:user.email,paymentStatus:'SUCCESS'}).expect(200);
+          expect(older.body.total).toBe(0);
+          await http.get('/admin/orders').set('Authorization',`Bearer ${admin.token}`).query({paymentStatus:'PAID'}).expect(400);
+        } finally {await prisma.payment.deleteMany({where:{orderId}});}
+      });
 
       it('GET /orders/me stays an array and tolerates legacy productId rows', async () => {
         const http = request(app.getHttpServer());

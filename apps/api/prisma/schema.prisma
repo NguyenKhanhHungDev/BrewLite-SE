@@ -27,6 +27,9 @@ model User {
   role          String  @default("CUSTOMER")
   loyaltyPoints Int     @default(0)
   orders        Order[]
+  inventoryMovements InventoryMovement[]
+  cancelledOrders Order[] @relation("OrderCancellationActor")
+  paymentNotes Payment[] @relation("PaymentNoteActor")
 }
 
 model Order {
@@ -44,6 +47,10 @@ model Order {
   recipientName   String?
   recipientPhone  String?
   createdAt       DateTime          @default(now())
+  cancellationReason String? @db.VarChar(300)
+  cancelledAt DateTime?
+  cancelledById Int?
+  cancelledBy User? @relation("OrderCancellationActor", fields: [cancelledById], references: [id], onDelete: Restrict)
   items           OrderItem[]
   payments        Payment[]
   ingredientUses  OrderIngredient[]
@@ -88,6 +95,10 @@ model Payment {
   status                String    @default("PENDING")
   paidAt                DateTime?
   createdAt             DateTime  @default(now())
+  adminNote String? @db.VarChar(1000)
+  adminNoteUpdatedAt DateTime?
+  adminNoteUpdatedById Int?
+  adminNoteUpdatedBy User? @relation("PaymentNoteActor", fields: [adminNoteUpdatedById], references: [id], onDelete: Restrict)
 
   @@unique([userId, idempotencyKey])
 }
@@ -102,6 +113,26 @@ model Ingredient {
   version   Int                @default(0)
   recipes   RecipeIngredient[]
   orderUses OrderIngredient[]
+  movements InventoryMovement[]
+}
+
+model InventoryMovement {
+  id Int @id @default(autoincrement())
+  ingredientId Int
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  actorId Int
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  kind String
+  delta Int
+  stockBefore Int
+  stockAfter Int
+  reason String @db.VarChar(300)
+  idempotencyKey String?
+  requestHash String
+  createdAt DateTime @default(now())
+
+  @@unique([actorId, idempotencyKey])
+  @@index([ingredientId, createdAt])
 }
 
 enum ProductCategory {

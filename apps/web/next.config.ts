@@ -20,7 +20,6 @@ const nextConfig: NextConfig = {
       },
       { source: "/products", destination: `${apiOrigin}/products` },
       { source: "/api/products/:id", destination: `${apiOrigin}/products/:id` },
-      { source: "/auth/:path*", destination: `${apiOrigin}/auth/:path*` },
       { source: "/orders/:path*", destination: `${apiOrigin}/orders/:path*` },
       {
         source: "/payments/:path*",

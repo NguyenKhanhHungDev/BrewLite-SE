@@ -1,3 +1,4 @@
+import { AuthThrottleGuard } from './auth-throttle.guard.js';
 import {
   Body,
   Controller,
@@ -24,6 +25,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @UseGuards(AuthThrottleGuard)
   register(
     @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
     dto: RegisterDto,
@@ -32,6 +34,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @UseGuards(AuthThrottleGuard)
   @HttpCode(HttpStatus.OK)
   login(
     @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
@@ -40,9 +43,17 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  @Post('change-password')
+  @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
+  logout(@Req() request: Request & { user?: { id: number } }) {
+    if (!request.user) throw new UnauthorizedException('JWT required');
+    return this.authService.logout(request.user.id);
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, AuthThrottleGuard)
   changePassword(
     @Req() request: Request & { user?: { id: number } },
     @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))

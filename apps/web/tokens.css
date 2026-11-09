@@ -1,0 +1,29 @@
+/* BrewLite admin · warm coffee palette; existing brand typography. */
+.bl-admin-workspace {
+  --color-paper: oklch(97% .012 75);
+  --color-surface: oklch(99% .005 75);
+  --color-inset: oklch(94% .018 75);
+  --color-ink: oklch(26% .035 45);
+  --color-muted: oklch(48% .035 50);
+  --color-rule: oklch(88% .022 65);
+  --color-accent: oklch(46% .08 48);
+  --color-sidebar: oklch(24% .035 45);
+  --color-sidebar-text: oklch(96% .018 75);
+  --color-sidebar-muted: oklch(80% .04 65);
+  --color-sidebar-active: oklch(37% .055 45);
+  --color-warning: oklch(48% .09 55);
+  --color-warning-bg: oklch(95% .035 75);
+  --color-focus: oklch(62% .13 55);
+  --font-display: var(--bl-display);
+  --font-body: var(--bl-body);
+  --space-xs: .5rem;
+  --space-sm: .75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --text-sm: .8125rem;
+  --text-body: .875rem;
+  --text-title: clamp(1.6rem, 2.5vw, 2rem);
+  --radius-card: 16px;
+  --radius-input: 10px;
+}
