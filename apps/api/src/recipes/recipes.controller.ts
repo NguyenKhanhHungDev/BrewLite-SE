@@ -1,9 +1,9 @@
+import { ParseDatabaseIdPipe } from '../common/parse-database-id.pipe.js';
 import {
   Body,
   Controller,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   UseGuards,
@@ -45,7 +45,7 @@ export class RecipesController {
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
+  async findOne(@Param('id', ParseDatabaseIdPipe) id: number) {
     return response(await this.recipes.findOne(id));
   }
 
@@ -56,7 +56,7 @@ export class RecipesController {
 
   @Patch(':id')
   async update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseDatabaseIdPipe) id: number,
     @Body() input: UpdateRecipeDto,
   ) {
     return response(await this.recipes.update(id, input));

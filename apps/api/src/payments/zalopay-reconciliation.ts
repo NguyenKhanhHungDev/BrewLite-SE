@@ -27,7 +27,11 @@ export class ZalopayReconciliation {
       throw new UnauthorizedException('JWT required');
     }
     const orderId = Number(rawOrderId);
-    if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+    if (
+      !Number.isSafeInteger(orderId) ||
+      orderId <= 0 ||
+      orderId > 2147483647
+    ) {
       throw new BadRequestException('orderId must be a positive integer');
     }
 

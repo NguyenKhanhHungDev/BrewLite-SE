@@ -36,7 +36,11 @@ function parseCreateZalopayBody(body: unknown): { orderId: number } {
   if (keys.length !== 1 || keys[0] !== 'orderId') {
     throw new BadRequestException('Body must only contain orderId');
   }
-  if (!Number.isSafeInteger(body.orderId) || Number(body.orderId) <= 0) {
+  if (
+    !Number.isSafeInteger(body.orderId) ||
+    Number(body.orderId) <= 0 ||
+    Number(body.orderId) > 2147483647
+  ) {
     throw new BadRequestException('orderId must be a positive integer');
   }
   return { orderId: Number(body.orderId) };

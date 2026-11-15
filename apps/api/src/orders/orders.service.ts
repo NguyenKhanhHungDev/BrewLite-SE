@@ -106,8 +106,10 @@ function parseOrderInput(body: unknown): ParsedOrderInput {
     if (
       !Number.isSafeInteger(productId) ||
       Number(productId) <= 0 ||
+      Number(productId) > MAX_POSTGRES_INT ||
       !Number.isSafeInteger(quantity) ||
-      Number(quantity) <= 0
+      Number(quantity) <= 0 ||
+      Number(quantity) > MAX_POSTGRES_INT
     ) {
       throw new BadRequestException(
         'productId và quantity phải là số nguyên dương',
@@ -282,111 +284,118 @@ export class OrdersService {
       }
     }
 
-    const recipeById = new Map<number, RecipeSnapshot>();
-    for (const item of input.items) {
-      if (!recipeById.has(item.productId)) {
-        const recipe = await this.store.getRecipeById(item.productId);
-        if (!recipe) {
-          throw new NotFoundException(`Không tìm thấy món ${item.productId}`);
+    try {
+      const recipeById = new Map<number, RecipeSnapshot>();
+      for (const item of input.items) {
+        if (!recipeById.has(item.productId)) {
+          const recipe = await this.store.getRecipeById(item.productId);
+          if (!recipe) {
+            throw new NotFoundException(`Không tìm thấy món ${item.productId}`);
+          }
+          recipeById.set(item.productId, recipe);
         }
-        recipeById.set(item.productId, recipe);
-      }
-    }
-
-    const toppingIngredients = await this.store.getToppingIngredients();
-    const needInputs = input.items.map((item) => ({
-      recipe: recipeById.get(item.productId)!,
-      quantity: item.quantity,
-      size: item.size,
-      toppings: item.toppings,
-    }));
-    const ingredientNeeds = calculateIngredientNeeds(
-      needInputs,
-      toppingIngredients,
-    );
-
-    const ingredientById = new Map<number, IngredientSnapshot>();
-    for (const recipe of recipeById.values()) {
-      for (const line of recipe.ingredients) {
-        ingredientById.set(line.ingredientId, line.ingredient);
-      }
-    }
-    if (toppingIngredients.pearl) {
-      ingredientById.set(toppingIngredients.pearl.id, toppingIngredients.pearl);
-    }
-    if (toppingIngredients.cream) {
-      ingredientById.set(toppingIngredients.cream.id, toppingIngredients.cream);
-    }
-    assertIngredientAvailability(ingredientNeeds, ingredientById);
-
-    const lines: OrderLine[] = [];
-    let subtotalTotal = 0;
-    for (const item of input.items) {
-      const recipe = recipeById.get(item.productId)!;
-      if (!Number.isSafeInteger(recipe.price) || recipe.price < 0) {
-        throw new BadRequestException('Giá món không hợp lệ');
       }
 
-      const unitPrice = calculateUnitPrice(
-        recipe.price,
-        item.size,
-        item.toppings,
-      );
-      if (unitPrice > MAX_POSTGRES_INT) {
-        throw new BadRequestException('Đơn giá vượt giới hạn lưu trữ');
-      }
-      const subtotal = unitPrice * item.quantity;
-      if (
-        !Number.isSafeInteger(subtotal) ||
-        subtotal > MAX_POSTGRES_INT ||
-        !Number.isSafeInteger(subtotalTotal + subtotal) ||
-        subtotalTotal + subtotal > MAX_POSTGRES_INT
-      ) {
-        throw new BadRequestException(
-          'Tổng tiền đơn hàng vượt giới hạn lưu trữ',
-        );
-      }
-      lines.push({
-        productId: item.productId,
-        recipeName: recipe.name,
-        basePrice: recipe.price,
+      const toppingIngredients = await this.store.getToppingIngredients();
+      const needInputs = input.items.map((item) => ({
+        recipe: recipeById.get(item.productId)!,
         quantity: item.quantity,
         size: item.size,
         toppings: item.toppings,
-        sugarLevel: item.sugarLevel ?? null,
-        iceLevel: item.iceLevel ?? null,
-        note: item.note ?? null,
-        unitPrice,
-        subtotal,
-      });
-      subtotalTotal += subtotal;
-    }
+      }));
+      const ingredientNeeds = calculateIngredientNeeds(
+        needInputs,
+        toppingIngredients,
+      );
 
-    const promotion = applyPromotion(subtotalTotal, input.promoCode);
-    if (promotion.payable <= 0) {
-      throw new BadRequestException('Tổng tiền sau giảm giá phải lớn hơn 0');
-    }
+      const ingredientById = new Map<number, IngredientSnapshot>();
+      for (const recipe of recipeById.values()) {
+        for (const line of recipe.ingredients) {
+          ingredientById.set(line.ingredientId, line.ingredient);
+        }
+      }
+      if (toppingIngredients.pearl) {
+        ingredientById.set(toppingIngredients.pearl.id, toppingIngredients.pearl);
+      }
+      if (toppingIngredients.cream) {
+        ingredientById.set(toppingIngredients.cream.id, toppingIngredients.cream);
+      }
+      assertIngredientAvailability(ingredientNeeds, ingredientById);
 
-    const draft: OrderDraft = {
-      userId,
-      status: 'PENDING',
-      total: promotion.payable,
-      discount: promotion.discount,
-      promoCode: promotion.promoCode,
-      recipientName: input.recipientName,
-      idempotencyKey,
-      idempotencyHash,
-      items: lines,
-    };
+      const lines: OrderLine[] = [];
+      let subtotalTotal = 0;
+      for (const item of input.items) {
+        const recipe = recipeById.get(item.productId)!;
+        if (!Number.isSafeInteger(recipe.price) || recipe.price < 0) {
+          throw new BadRequestException('Giá món không hợp lệ');
+        }
 
-    try {
+        const unitPrice = calculateUnitPrice(
+          recipe.price,
+          item.size,
+          item.toppings,
+        );
+        if (unitPrice > MAX_POSTGRES_INT) {
+          throw new BadRequestException('Đơn giá vượt giới hạn lưu trữ');
+        }
+        const subtotal = unitPrice * item.quantity;
+        if (
+          !Number.isSafeInteger(subtotal) ||
+          subtotal > MAX_POSTGRES_INT ||
+          !Number.isSafeInteger(subtotalTotal + subtotal) ||
+          subtotalTotal + subtotal > MAX_POSTGRES_INT
+        ) {
+          throw new BadRequestException(
+            'Tổng tiền đơn hàng vượt giới hạn lưu trữ',
+          );
+        }
+        lines.push({
+          productId: item.productId,
+          recipeName: recipe.name,
+          basePrice: recipe.price,
+          quantity: item.quantity,
+          size: item.size,
+          toppings: item.toppings,
+          sugarLevel: item.sugarLevel ?? null,
+          iceLevel: item.iceLevel ?? null,
+          note: item.note ?? null,
+          unitPrice,
+          subtotal,
+        });
+        subtotalTotal += subtotal;
+      }
+
+      const promotion = applyPromotion(subtotalTotal, input.promoCode);
+      if (promotion.payable <= 0) {
+        throw new BadRequestException('Tổng tiền sau giảm giá phải lớn hơn 0');
+      }
+
+      const draft: OrderDraft = {
+        userId,
+        status: 'PENDING',
+        total: promotion.payable,
+        discount: promotion.discount,
+        promoCode: promotion.promoCode,
+        recipientName: input.recipientName,
+        idempotencyKey,
+        idempotencyHash,
+        items: lines,
+      };
+
       const saved = await this.store.saveOrder(draft);
       if (!isOrderStatus(saved.status))
         throw new ConflictException('Trạng thái đơn hàng đã lưu không hợp lệ');
       return { orderId: saved.id, status: saved.status, total: saved.total };
     } catch (error: unknown) {
-      // Handle concurrent retries where both requests passed the initial lookup.
-      if (idempotencyKey && idempotencyHash && isUniqueConstraintError(error)) {
+      // A concurrent request may commit after our first lookup but before
+      // catalog/stock validation. Its stored result takes precedence over a
+      // stale preflight error; replayResult still rejects a different payload.
+      const replayable =
+        error instanceof BadRequestException ||
+        error instanceof ConflictException ||
+        error instanceof NotFoundException ||
+        isUniqueConstraintError(error);
+      if (idempotencyKey && idempotencyHash && replayable) {
         const existing = await this.store.findOrderByIdempotencyKey(
           userId,
           idempotencyKey,
@@ -398,7 +407,11 @@ export class OrdersService {
   }
 
   async findOne(orderId: number, userId: number, isAdmin = false) {
-    if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+    if (
+      !Number.isSafeInteger(orderId) ||
+      orderId <= 0 ||
+      orderId > MAX_POSTGRES_INT
+    ) {
       throw new BadRequestException('orderId phải là số nguyên dương');
     }
     const order = isAdmin
@@ -409,7 +422,11 @@ export class OrdersService {
   }
 
   async findAdminOrder(orderId: number) {
-    if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+    if (
+      !Number.isSafeInteger(orderId) ||
+      orderId <= 0 ||
+      orderId > MAX_POSTGRES_INT
+    ) {
       throw new BadRequestException('orderId phải là số nguyên dương');
     }
     const order = await this.store.findAdminOrder(orderId);

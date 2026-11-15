@@ -11,6 +11,7 @@ import {
   IsNotEmpty,
   Length,
   MaxLength,
+  Max,
   Min,
   ValidateNested,
   ValidateIf,
@@ -26,10 +27,12 @@ import {
 export class CreateOrderItemDto {
   @IsInt()
   @Min(1)
+  @Max(2147483647)
   productId!: number;
 
   @IsInt()
   @Min(1)
+  @Max(2147483647)
   quantity!: number;
 
   @IsOptional()

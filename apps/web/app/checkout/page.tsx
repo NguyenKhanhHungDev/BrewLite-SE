@@ -357,8 +357,8 @@ export default function CheckoutPage() {
                                 className="bl-qr-img"
                               />
                               <p className="bl-qr-instruction">
-                                Quét mã bằng <strong>App ZaloPay</strong> hoặc
-                                bấm nút mở ứng dụng bên dưới
+                                Quét mã để mở <strong>cổng ZaloPay</strong> hoặc
+                                bấm nút thanh toán bên dưới
                               </p>
                             </div>
 
@@ -377,7 +377,7 @@ export default function CheckoutPage() {
                               type="button"
                               onClick={() => setPaymentLink(null)}
                             >
-                              Đổi phương thức / Hủy quét mã
+                              Ẩn mã QR
                             </button>
 
                             <Link

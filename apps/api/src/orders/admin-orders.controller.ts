@@ -1,9 +1,9 @@
+import { ParseDatabaseIdPipe } from '../common/parse-database-id.pipe.js';
 import {
   Body,
   Controller,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Req,
@@ -49,13 +49,13 @@ export class AdminOrdersController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id', ParseDatabaseIdPipe) id: number) {
     return this.orders.findAdminOrder(id);
   }
 
   @Post(':id/cancel')
   cancel(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseDatabaseIdPipe) id: number,
     @Req() req: { user: { id: number } },
     @Body() body: unknown,
   ) {
@@ -64,7 +64,7 @@ export class AdminOrdersController {
 
   @Patch(':id/status')
   updateStatus(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseDatabaseIdPipe) id: number,
     @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
     dto: UpdateOrderStatusDto,
   ) {

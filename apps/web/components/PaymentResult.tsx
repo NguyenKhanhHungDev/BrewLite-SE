@@ -37,7 +37,7 @@ const messages: Record<PaymentView, { title: string; copy: string; badgeClass: s
   },
   failed: {
     title: "Thanh toán chưa thành công",
-    copy: "Giao dịch bị gián đoạn hoặc bạn đã hủy trên cổng ZaloPay. Bạn có thể thử thanh toán lại hoặc chọn phương thức khác.",
+    copy: "Vui lòng kiểm tra trạng thái đơn và lịch sử giao dịch. Để thử lại, tạo đơn mới từ giỏ hàng.",
     badgeClass: "bl-badge-failed",
   },
   cancelled: {

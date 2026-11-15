@@ -1,10 +1,10 @@
+import { ParseDatabaseIdPipe } from '../common/parse-database-id.pipe.js';
 import {
   Body,
   Controller,
   Headers,
   Get,
   Param,
-  ParseIntPipe,
   Post,
   Req,
   UnauthorizedException,
@@ -26,7 +26,7 @@ export class OrdersController {
 
   @Get(':id')
   @UseGuards(AdminClaimGuard)
-  findOne(@Param('id', ParseIntPipe) id: number, @Req() request: AuthRequest) {
+  findOne(@Param('id', ParseDatabaseIdPipe) id: number, @Req() request: AuthRequest) {
     const userId = request.user?.id;
     if (!userId) throw new UnauthorizedException('JWT required');
     return this.ordersService.findOne(id, userId, request.user?.isAdmin === true);
