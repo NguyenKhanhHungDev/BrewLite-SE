@@ -22,7 +22,8 @@ not open or commit a transaction themselves.
 
 ```ts
 await prisma.$transaction(async (tx) => {
-  const result = await consumeReservation(tx, orderId);
+  // Only after a verified gateway SUCCESS. Released reservations still fail.
+  const result = await consumeReservation(tx, orderId, true);
   if (result === 'EXPIRED') {
     // The helper has changed the order to CANCELLED and released its reservation.
     // Do not mark the Payment SUCCESS or award loyalty. Record reconciliation.
@@ -48,13 +49,13 @@ performs `PENDING -> PAYMENT_FAILED|CANCELLED` itself. Do not perform a second
 Order status update after invoking either helper. Duplicate calls are safe:
 only `OrderIngredient.status = RESERVED` rows change stock/reserved.
 
-## Required Payments-side changes before end-to-end payment tests
+## Payments integration currently implemented
 
 Provider-neutral wording; for ZaloPay the "event" below is a verified callback
 or a verified order-status query result. Thắng verifies the provider's success
 definition and signature; none of that goes into the inventory helper.
 
-1. Call `consumeReservation(tx, orderId)` on the first valid SUCCESS event
+1. Call `consumeReservation(tx, orderId, true)` on the first verified SUCCESS event
    before recording Payment SUCCESS. When the result is `EXPIRED`, leave the
    payment out of SUCCESS and persist an explicit reconciliation outcome/log.
 2. Call `releaseReservation(tx, orderId, 'PAYMENT_FAILED'|'CANCELLED')` for a
@@ -66,15 +67,17 @@ definition and signature; none of that goes into the inventory helper.
 5. Callback, status query and the expiry batch may run at the same time. They
    are safe because every helper first takes `SELECT ... FOR UPDATE` on the
    `Order` row, then on its `OrderIngredient` rows (ascending ingredient id),
-   and the expiry batch uses `FOR UPDATE SKIP LOCKED`. Proposal to confirm with
-   Thắng: call the helper **before** writing the Payment row so every path locks
-   in the same order (Order → OrderIngredient → Ingredient → Payment), and keep
-   `Payment.transactionRef` unique as the idempotency key for duplicate events.
+   and the expiry batch uses `FOR UPDATE SKIP LOCKED`. Payment creation,
+   resolution and admin cancellation explicitly acquire the Order lock first.
+   `Payment.transactionRef` is unique for duplicate events. Unresolved ZaloPay
+   attempts retain their reservations at expiry; a later verified SUCCESS can
+   consume them. A SUCCESS after release is recorded as
+   RECONCILIATION_REQUIRED without consuming stock or awarding loyalty.
 
 ## Admin access (role from the database)
 
 Admin rights come from `User.role` in the database, never from the JWT. The
-login token only carries `sub`; any `role`, `isAdmin` or `roles` claim in a
+login token carries `sub`, `sessionVersion` and expiry; any `role`, `isAdmin` or `roles` claim in a
 token is ignored.
 
 - `AdminClaimGuard` loads the user via `AuthService.me(userId)` on every request
@@ -82,7 +85,7 @@ token is ignored.
   customers.
 - `AdminGuard` runs `AdminClaimGuard` and returns `403` when the user is not an
   ADMIN (`401` when the token is missing/invalid).
-- `GET /auth/me` returns `{ id, email, loyaltyPoints, role }`.
+- `GET /auth/me` returns `{ id, email, name, loyaltyPoints, role }`.
 - `GET /orders/:id` uses `AdminClaimGuard`: a customer sees only their own order
   (another customer's order is `404`), an ADMIN can view any order's detail.
 - `/admin/orders` and `/admin/orders/:id` use `AdminGuard`.
