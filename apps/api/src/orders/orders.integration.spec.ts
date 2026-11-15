@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { PrismaClient } from '../generated/prisma/client.js';
 import {
@@ -336,6 +336,75 @@ describe.skipIf(!integrationEnabled)(
         `;
         expect(Number(orders[0]?.n)).toBe(1);
         expect(await inv(ing)).toEqual({ stock: 1000, reserved: 20 });
+      });
+    });
+
+    describe('A1 audit regressions', () => {
+      it.each([false, true])('rechecks an idempotent winner after a delayed lookup (changed payload: %s)', async (changed) => {
+        const user = await createUserAndLogin();
+        const ing = await createIngredient(`Delayed-${randomUUID()}`, 'g', 20);
+        const recipe = await createRecipe(`Delayed-${randomUUID()}`, 25000, [[ing, 20]]);
+        const key = `delayed-${randomUUID()}`;
+        const { ORDERS_STORE } = await import('./orders.contract.js');
+        const store = app.get<import('./orders.contract.js').OrdersStore>(ORDERS_STORE);
+        const lookup = store.findOrderByIdempotencyKey.bind(store);
+        let winnerId = 0;
+        const spy = vi.spyOn(store, 'findOrderByIdempotencyKey').mockImplementationOnce(async (id, requestKey) => {
+          const original = await lookup(id, requestKey);
+          expect(original).toBeNull();
+          // The first lookup has no result yet; another HTTP request commits
+          // the last available portion before the first reads the catalog.
+          const winner = await post(user.token, { items: [item(recipe, 1)] }, key).expect(201);
+          winnerId = winner.body.orderId;
+          return original;
+        });
+        try {
+          const delayed = await post(user.token, { items: [item(recipe, changed ? 2 : 1)] }, key);
+          expect(delayed.status).toBe(changed ? 409 : 201);
+          if (!changed) expect(delayed.body.orderId).toBe(winnerId);
+          expect(await inv(ing)).toEqual({ stock: 20, reserved: 20 });
+          const orders = await prisma.order.findMany({ where: { userId: user.id, idempotencyKey: key } });
+          expect(orders).toHaveLength(1);
+        } finally {
+          spy.mockRestore();
+        }
+      });
+
+      it.each([
+        ['get', '/products/2147483648', undefined],
+        ['get', '/orders/2147483648', undefined],
+        ['get', '/payments/2147483648/status', undefined],
+        ['get', '/recipes/2147483648', undefined],
+        ['patch', '/recipes/2147483648', { price: 35000 }],
+        ['patch', '/ingredients/2147483648', { minStock: 5 }],
+        ['delete', '/ingredients/2147483648', undefined],
+        ['post', '/ingredients/2147483648/restock', { quantity: 1 }],
+        ['post', '/ingredients/2147483648/adjust', { stock: 0, expectedVersion: 0, reason: 'Audit ID validation' }],
+        ['get', '/ingredients/2147483648/movements', undefined],
+        ['get', '/admin/orders/2147483648', undefined],
+        ['post', '/admin/orders/2147483648/cancel', { reason: 'Audit ID validation' }],
+        ['patch', '/admin/orders/2147483648/status', { status: 'PREPARING' }],
+      ] as const)('rejects an out-of-range ID for %s %s', async (method, path, body) => {
+        const admin = await createUserAndLogin('ADMIN');
+        await request(app.getHttpServer())[method](path)
+          .set('Authorization', `Bearer ${admin.token}`)
+          .send(body).expect(400);
+      });
+
+      it.each([
+        { items: [item(2147483648, 1)] },
+        { items: [item(1, 2147483648)] },
+      ])('rejects an out-of-range order item: %j', async (body) => {
+        const user = await createUserAndLogin();
+        await post(user.token, body).expect(400);
+      });
+
+      it('rejects an out-of-range payment orderId before checking gateway config', async () => {
+        const user = await createUserAndLogin();
+        await request(app.getHttpServer()).post('/payments/zalopay/create')
+          .set('Authorization', `Bearer ${user.token}`)
+          .set('Idempotency-Key', `invalid-${randomUUID()}`)
+          .send({ orderId: 2147483648 }).expect(400);
       });
     });
 

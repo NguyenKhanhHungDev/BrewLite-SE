@@ -1,8 +1,8 @@
+import { ParseDatabaseIdPipe } from '../common/parse-database-id.pipe.js';
 import {
   Controller,
   Get,
   Param,
-  ParseIntPipe,
 } from '@nestjs/common';
 import { ProductsService } from './products.service.js';
 
@@ -18,7 +18,7 @@ export class ProductsController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id', ParseDatabaseIdPipe) id: number) {
     return this.productsService.findOne(id);
   }
 }

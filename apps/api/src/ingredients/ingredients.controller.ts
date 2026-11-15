@@ -1,3 +1,4 @@
+import { ParseDatabaseIdPipe } from '../common/parse-database-id.pipe.js';
 import {
   Body,
   Controller,
@@ -7,7 +8,6 @@ import {
   Req,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   UseGuards,
@@ -47,7 +47,7 @@ export class IngredientsController {
 
   @Patch(':id')
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseDatabaseIdPipe) id: number,
     @Body() input: UpdateIngredientDto,
   ) {
     return this.ingredients.update(id, input);
@@ -55,7 +55,7 @@ export class IngredientsController {
 
   @Post(':id/restock')
   restock(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseDatabaseIdPipe) id: number,
     @Body() input: RestockIngredientDto,
     @Req() req: { user: { id: number } },
     @Headers('idempotency-key') key?: string,
@@ -70,7 +70,7 @@ export class IngredientsController {
   }
   @Post(':id/adjust')
   adjust(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseDatabaseIdPipe) id: number,
     @Body() input: AdjustIngredientDto,
     @Req() req: { user: { id: number } },
     @Headers('idempotency-key') key?: string,
@@ -80,14 +80,14 @@ export class IngredientsController {
 
   @Get(':id/movements')
   movements(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseDatabaseIdPipe) id: number,
     @Query() query: InventoryHistoryQueryDto,
   ) {
     return this.ingredients.movements(id, query.page ?? 1);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
+  remove(@Param('id', ParseDatabaseIdPipe) id: number) {
     return this.ingredients.remove(id);
   }
 }
